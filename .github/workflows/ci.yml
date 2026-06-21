@@ -39,7 +39,7 @@ jobs:
       # SwiftFormat, SwiftLint, and xcbeautify are preinstalled on macos-26.
       # Install only what might be missing (XcodeGen) and skip the rest.
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: brew install xcodegen swiftformat swiftlint
 
       - name: Check formatting
         run: make format-check
