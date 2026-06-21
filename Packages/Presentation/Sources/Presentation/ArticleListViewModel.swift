@@ -1,8 +1,8 @@
-public import Observation
-import DI
-public import Model
-import Domain
 public import Common
+import DI
+import Domain
+public import Model
+public import Observation
 
 /// ViewModel for the article list. `@MainActor @Observable` so SwiftUI observes
 /// its mutations on the main thread. It injects the *use case protocol* — it has
@@ -10,7 +10,6 @@ public import Common
 @MainActor
 @Observable
 public final class ArticleListViewModel {
-
     public private(set) var state: ViewState<[Article]> = .idle
 
     @ObservationIgnored

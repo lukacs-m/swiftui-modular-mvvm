@@ -1,5 +1,5 @@
-import SwiftUI
 import Presentation
+import SwiftUI
 
 /// The entire app target. All logic and UI live in the layer packages
 /// (Common / Model / Domain / Data / Presentation); this file only declares the

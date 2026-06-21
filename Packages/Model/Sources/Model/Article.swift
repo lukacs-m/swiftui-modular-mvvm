@@ -11,7 +11,7 @@ public struct Article: Identifiable, Equatable, Sendable {
         id: UUID,
         title: String,
         summary: String,
-        publishedAt: Date
+        publishedAt: Date,
     ) {
         self.id = id
         self.title = title

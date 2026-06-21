@@ -1,6 +1,6 @@
-public import FactoryKit
-public import Domain
 import Data
+public import Domain
+public import FactoryKit
 
 /// Article-feature dependency registrations.
 ///
@@ -8,7 +8,6 @@ import Data
 /// add `ProfileRegistrations.swift`, `SettingsRegistrations.swift`, etc. alongside
 /// this one, each extending `Container` with that feature's keyPaths.
 public extension Container {
-
     /// Repository abstraction (Domain) bound to its concrete implementation (Data).
     var articleRepository: Factory<any ArticleRepository> {
         self { RemoteArticleRepository() }

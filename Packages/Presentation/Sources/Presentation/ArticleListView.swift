@@ -1,8 +1,8 @@
-public import SwiftUI
-import DI
-import Model
-import Domain
 import Common
+import DI
+import Domain
+import Model
+public import SwiftUI
 
 /// The article list screen. The View is dumb: it renders ViewModel state and
 /// forwards intent. No business logic lives in `body`.
@@ -37,7 +37,7 @@ public struct ArticleListView: View {
             ContentUnavailableView(
                 "No Articles",
                 systemImage: "doc.text",
-                description: Text("Check back later for new stories.")
+                description: Text("Check back later for new stories."),
             )
 
         case let .failed(message):
@@ -77,17 +77,26 @@ private struct ArticleRow: View {
 /// block so it isn't compiled into the shipping app.
 private struct PreviewArticleRepository: ArticleRepository {
     let articles: [Article]
-    func fetchArticles() async throws -> [Article] { articles }
+    func fetchArticles() async throws -> [Article] {
+        articles
+    }
 }
 
 #Preview("Loaded") {
     let _ = Container.shared.articleRepository.preview {
         PreviewArticleRepository(articles: [
-            Article(id: UUID(), title: "First Story",
-                    summary: "A short summary.", publishedAt: Date()),
-            Article(id: UUID(), title: "Second Story",
-                    summary: "Another summary.",
-                    publishedAt: Date().addingTimeInterval(-86_400)),
+            Article(
+                id: UUID(),
+                title: "First Story",
+                summary: "A short summary.",
+                publishedAt: Date(),
+            ),
+            Article(
+                id: UUID(),
+                title: "Second Story",
+                summary: "Another summary.",
+                publishedAt: Date().addingTimeInterval(-86400),
+            ),
         ])
     }
     ArticleListView()
