@@ -13,29 +13,33 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & Test
-    # NOTE: the runner image and Xcode path below pin the toolchain to match
-    # .swift-version (Swift 6.3.1 → Xcode 26.4.x). GitHub rotates available
-    # images and installed Xcodes over time — if a step fails with "Xcode not
-    # found", check the runner's available versions and update `runs-on` and
-    # the `xcode-select` path accordingly.
-    runs-on: macos-15
+    # macos-26 is the runner image carrying Xcode 26.x (Swift 6.3+). Its default
+    # Xcode already matches .swift-version, but we select explicitly below so CI
+    # stays deterministic as the image's default drifts.
+    runs-on: macos-26
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Swift 6.3.1 ships with Xcode 26.4.x. Pin it so CI matches .swift-version.
+      # Select Xcode via the standard action rather than a hardcoded path, which
+      # breaks whenever the runner image rotates its installed Xcodes. The version
+      # is a range so a patch bump (26.4.0 → 26.4.1) doesn't fail the build; widen
+      # to '26' or 'latest-stable' if you want to always track the newest.
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_26.4.app
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.4'
 
       - name: Show versions
         run: |
           swift --version
           xcodebuild -version
 
-      - name: Install tools
-        run: |
-          brew install swiftformat swiftlint xcodegen
+      # SwiftFormat, SwiftLint, and xcbeautify are preinstalled on macos-26.
+      # Install only what might be missing (XcodeGen) and skip the rest.
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
       - name: Check formatting
         run: make format-check
@@ -50,4 +54,5 @@ jobs:
         run: make test
 
       - name: Build app
-        run: make build DESTINATION='platform=iOS Simulator,name=iPhone 16'
+        run: make build DESTINATION='platform=iOS Simulator,name=iPhone 17'
+
