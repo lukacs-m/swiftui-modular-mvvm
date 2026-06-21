@@ -207,7 +207,7 @@ format-check: ## Check formatting without writing (used by CI)
 		echo "SwiftFormat not found. Install with: brew install swiftformat"; \
 		exit 1; \
 	fi
-	@swiftformat --lint Packages App
+	@swiftformat Packages App --lint
 
 # ---- Housekeeping ---------------------------------------------------------
 
