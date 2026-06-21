@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>MainTemplateFile</key>
+	<string>___FILEBASENAME___View.swift</string>
+	<key>SupportsSwiftPackage</key>
+	<true/>
+	<key>Description</key>
+	<string>Generates a SwiftUI View and its @Observable, @MainActor ViewModel for the Presentation layer.</string>
+	<key>Kind</key>
+	<string>Xcode.IDEKit.TextSubstitutionFileTemplateKind</string>
+	<key>Options</key>
+	<array>
+		<dict>
+			<key>Description</key>
+			<string>The name of the scene (a View + ViewModel pair will be generated).</string>
+			<key>Identifier</key>
+			<string>sceneName</string>
+			<key>Name</key>
+			<string>Scene Name:</string>
+			<key>NotPersisted</key>
+			<true/>
+			<key>Required</key>
+			<true/>
+			<key>Type</key>
+			<string>text</string>
+		</dict>
+	</array>
+	<key>SortOrder</key>
+	<string>0</string>
+	<key>Summary</key>
+	<string>SwiftUI View + ViewModel (MVVM)</string>
+</dict>
+</plist>

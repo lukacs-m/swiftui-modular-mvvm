@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>MainTemplateFile</key>
+	<string>___FILEBASENAME___.swift</string>
+	<key>SupportsSwiftPackage</key>
+	<true/>
+	<key>Description</key>
+	<string>Generates an async throwing UseCase and its associated protocol (Domain layer).</string>
+	<key>Kind</key>
+	<string>Xcode.IDEKit.TextSubstitutionFileTemplateKind</string>
+	<key>Options</key>
+	<array>
+		<dict>
+			<key>Description</key>
+			<string>The name of the Usecase</string>
+			<key>Identifier</key>
+			<string>productName</string>
+			<key>Name</key>
+			<string>UseCase Name:</string>
+			<key>NotPersisted</key>
+			<true/>
+			<key>Required</key>
+			<true/>
+			<key>Type</key>
+			<string>text</string>
+		</dict>
+		<dict>
+			<key>NotPersisted</key>
+			<string>YES</string>
+			<key>Default</key>
+			<string>___VARIABLE_productName:identifier___UseCase</string>
+			<key>Description</key>
+			<string>The name of the UseCase protocol</string>
+			<key>Identifier</key>
+			<string>protocolName</string>
+			<key>Name</key>
+			<string>UseCase protocol Name:</string>
+			<key>Required</key>
+			<true/>
+			<key>Type</key>
+			<string>static</string>
+		</dict>
+	</array>
+	<key>SortOrder</key>
+	<string>0</string>
+	<key>Summary</key>
+	<string>Async UseCase</string>
+</dict>
+</plist>

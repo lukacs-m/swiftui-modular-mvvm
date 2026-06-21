@@ -1,0 +1,68 @@
+name: MyApp
+
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+
+# Each architectural layer is its own local package.
+packages:
+  Common:
+    path: Packages/Common
+  Model:
+    path: Packages/Model
+  Domain:
+    path: Packages/Domain
+  Data:
+    path: Packages/Data
+  DI:
+    path: Packages/DI
+  Presentation:
+    path: Packages/Presentation
+
+targets:
+  MyApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: App/MyApp
+    dependencies:
+      # Presentation provides the root views (and pulls in Domain/Model/Common/DI).
+      - package: Presentation
+        product: Presentation
+      # DI is linked explicitly so its Factory Container registrations are
+      # compiled into the app and available at resolution time.
+      - package: DI
+        product: DI
+    info:
+      path: App/MyApp/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIApplicationSupportsIndependentScenes: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.MyApp
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # Swift 6 language mode on the 6.3 toolchain.
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        # Approachable concurrency + main-actor-by-default, matching a fresh
+        # Xcode 26 project. The app target runs on MainActor unless opted out.
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        # Upcoming features pulled forward to match the package settings.
+        SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY: YES
+        SWIFT_UPCOMING_FEATURE_INTERNAL_IMPORTS_BY_DEFAULT: YES
+        SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+        TARGETED_DEVICE_FAMILY: "1,2"

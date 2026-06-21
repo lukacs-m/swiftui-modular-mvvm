@@ -1,0 +1,65 @@
+# SwiftLint configuration — https://github.com/realm/SwiftLint
+# Run via `make lint`.
+
+# Lint the package sources and the app target; skip build artifacts.
+included:
+  - Packages
+  - App
+
+excluded:
+  - "**/.build"
+  - .build
+  - DerivedData
+  - "**/*.generated.swift"
+  - "**/Tests/**"          # don't lint test files
+  - "**/Package.swift"     # don't lint package manifests
+  - "Templates"            # Xcode templates use ___PLACEHOLDER___ syntax
+
+# Opt-in rules worth having on a clean codebase.
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - first_where
+  - last_where
+  - contains_over_first_not_nil
+  - sorted_first_last
+  - redundant_nil_coalescing
+  - toggle_bool
+  - unused_import
+  - explicit_init
+  - closure_spacing
+  - operator_usage_whitespace
+  - vertical_whitespace_closing_braces
+
+disabled_rules:
+  - todo                    # TODO/FIXME comments are fine during development
+  - trailing_comma          # SwiftFormat owns comma style
+
+line_length:
+  warning: 100
+  error: 140
+  ignores_comments: true
+  ignores_urls: true
+
+type_body_length:
+  warning: 300
+  error: 400
+
+file_length:
+  warning: 500
+  error: 700
+  ignore_comment_only_lines: true
+
+# Allow short, conventional identifiers (id, vm, di, x in closures, etc.).
+identifier_name:
+  min_length: 2
+  excluded:
+    - id
+    - vm
+    - di
+    - x
+    - y
+
+# Don't flag the example/reference types or generated code.
+nesting:
+  type_level: 2

@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    # NOTE: the runner image and Xcode path below pin the toolchain to match
+    # .swift-version (Swift 6.3.1 → Xcode 26.4.x). GitHub rotates available
+    # images and installed Xcodes over time — if a step fails with "Xcode not
+    # found", check the runner's available versions and update `runs-on` and
+    # the `xcode-select` path accordingly.
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Swift 6.3.1 ships with Xcode 26.4.x. Pin it so CI matches .swift-version.
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_26.4.app
+
+      - name: Show versions
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Install tools
+        run: |
+          brew install swiftformat swiftlint xcodegen
+
+      - name: Check formatting
+        run: make format-check
+
+      - name: Lint
+        run: make lint
+
+      - name: Generate Xcode project
+        run: make generate
+
+      - name: Test packages
+        run: make test
+
+      - name: Build app
+        run: make build DESTINATION='platform=iOS Simulator,name=iPhone 16'

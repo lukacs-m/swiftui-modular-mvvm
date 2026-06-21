@@ -1,0 +1,34 @@
+# SwiftFormat configuration — https://github.com/nicklockwood/SwiftFormat
+# Run via `make format` (apply) or `make format-check` (CI, no writes).
+#
+# These are conservative, stable options. To tune the config to your codebase
+# automatically, run: swiftformat --inferoptions Packages App
+
+# Match the toolchain so SwiftFormat respects Swift 6 syntax rules.
+--swiftversion 6.3
+
+# --- Layout ---------------------------------------------------------------
+--indent 4
+--maxwidth 100
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+
+# --- Idioms ---------------------------------------------------------------
+--self remove                       # rely on implicit self
+--importgrouping testable-bottom    # @testable imports last
+--semicolons never
+
+# --- Disabled rules -------------------------------------------------------
+# Don't strip access control or reorganize declarations — the layered design
+# relies on explicit `public` and hand-ordered members.
+--disable redundantInternal
+--disable organizeDeclarations
+--disable sortDeclarations
+
+# --- Excluded paths -------------------------------------------------------
+# Skip build artifacts, test files, package manifests, and Xcode templates
+# (the ___FILEBASENAME___ placeholder files are not valid standalone Swift).
+--exclude .build,**/.build,DerivedData,**/*.generated.swift,**/Tests,**/Package.swift,Templates
+
