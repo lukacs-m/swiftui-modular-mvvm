@@ -84,7 +84,9 @@ placeholder "Packages/Presentation/Sources/Presentation/Placeholder.swift" "Pres
 placeholder "Packages/DI/Sources/DI/Registrations/Placeholder.swift"     "DI registrations"
 
 # Domain and Presentation lose their only test file — leave the test target
-# with a trivially-passing placeholder so `swift test` still runs.
+# with a trivially-passing placeholder so `swift test` still runs. (git rm may
+# have removed the now-empty Tests directories, so recreate them first.)
+mkdir -p "Packages/Domain/Tests/DomainTests"
 cat > "Packages/Domain/Tests/DomainTests/PlaceholderTests.swift" <<'EOF'
 import Testing
 
@@ -94,6 +96,7 @@ import Testing
 }
 EOF
 
+mkdir -p "Packages/Presentation/Tests/PresentationTests"
 cat > "Packages/Presentation/Tests/PresentationTests/PlaceholderTests.swift" <<'EOF'
 import Testing
 
