@@ -124,6 +124,15 @@ into per-feature files as the app grows.
 - Previews swap in mocks with `Container.shared.x.preview { Mock() }`.
 - Tests use the Swift Testing `@Suite(.container)` trait for isolated, parallel-safe runs and `.register { Mock() }` (via `FactoryTesting`).
 
+## Local storage — SQLiteData
+
+- On-device persistence uses [SQLiteData](https://github.com/pointfreeco/sqlite-data) (`.package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.0.0")`), **not SwiftData**. It is a fast, lightweight layer over SQLite: queries stay explicit SQL, filtering/sorting/counting happen in the database rather than in memory, and nothing needs a live model container to be testable.
+- The dependency belongs to the **Data** package only. Domain still speaks in repository protocols over `Model` entities and knows nothing about SQLite; Presentation never sees it at all.
+- `@Table` records are the persistence-side equivalent of a DTO — internal to Data, mapped to `Model` entities by a `toDomain()` mapper, with SQLite failures mapped into `DomainError`.
+- The database and its migrations are created in Data and registered in DI as a `.singleton` Factory, so the app target stays `@main`-only.
+- `@FetchAll` / `@FetchOne` are not used in Presentation: they would bind a view straight to the database and bypass Domain. Views render a ViewModel's `ViewState`; repositories query.
+- CloudKit sync, if the app needs it, is SQLiteData's `SyncEngine`, configured alongside the database.
+
 ## Reference feature
 
 A complete vertical slice ships as a reference, spanning all layers:
