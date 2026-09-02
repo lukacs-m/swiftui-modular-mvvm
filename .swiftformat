@@ -26,6 +26,9 @@
 --disable redundantInternal
 --disable organizeDeclarations
 --disable sortDeclarations
+# Single-line early returns are the house style, and SwiftFormat already
+# leaves `guard … else { return }` alone by default.
+--disable wrapIfStatementBodies
 
 # --- Excluded paths -------------------------------------------------------
 # Skip build artifacts, test files, package manifests, and Xcode templates

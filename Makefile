@@ -136,6 +136,7 @@ build: $(PROJECT) ## Build the app for the simulator
 		-project $(PROJECT) \
 		-scheme $(SCHEME) \
 		-destination '$(DESTINATION)' \
+		-skipMacroValidation \
 		| $(FORMAT)
 
 # ---- Tests ----------------------------------------------------------------
@@ -180,6 +181,7 @@ test-app: $(PROJECT) ## Run tests through the Xcode scheme on the simulator
 		-project $(PROJECT) \
 		-scheme $(SCHEME) \
 		-destination '$(DESTINATION)' \
+		-skipMacroValidation \
 		| $(FORMAT)
 
 # ---- Lint & format --------------------------------------------------------

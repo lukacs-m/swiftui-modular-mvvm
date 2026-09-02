@@ -25,6 +25,8 @@ under `Packages/`, one per architectural layer. Dependency injection uses Factor
 5. **The app target contains only `@main`.** No logic, no views, no view models.
 6. **Only the `Presentation` package is MainActor-isolated by default.** Never add
    `.defaultIsolation(MainActor.self)` to any other package.
+7. **Local persistence uses SQLiteData, never SwiftData**, and the dependency
+   lives in `Data` only. See *Local storage* below.
 
 If a task requires breaking a rule, stop and explain the conflict instead of
 proceeding.
@@ -85,6 +87,34 @@ Worked examples currently in the codebase:
 
 The app target links **Presentation** (root views) and **DI** (so registrations are
 compiled into the binary).
+
+## Local storage
+
+On-device persistence uses **SQLiteData**
+([pointfreeco/sqlite-data](https://github.com/pointfreeco/sqlite-data)), a fast,
+lightweight layer over SQLite — **not SwiftData**. Prefer it for anything that must
+survive a launch beyond trivial `UserDefaults` flags.
+
+- Add it to `Packages/Data/Package.swift` only —
+  `.package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.0.0")`,
+  product `.product(name: "SQLiteData", package: "sqlite-data")`. Never add it to
+  Common, Model, Domain, DI, or Presentation.
+- `@Table` types are persistence records: the storage-side twin of a DTO. Keep them
+  internal to Data and map them to `Model` entities with a `toDomain()` mapper.
+  Domain's repository protocols keep speaking in `Model` types.
+- Map SQLite/GRDB failures into `DomainError` at the Data boundary, as the
+  networking path already does.
+- Create the database and its migrations in Data (e.g. an `AppDatabase` helper) and
+  bind it in `Packages/DI/Sources/DI/Registrations/` as a `.singleton` Factory. The
+  app target is `@main`-only, so never configure the database there.
+- Do **not** use `@FetchAll` / `@FetchOne` in Presentation — they bind a view
+  directly to the database and bypass Domain. ViewModels call use cases; repositories
+  run the queries.
+- CloudKit sync, when needed, is SQLiteData's `SyncEngine`, configured next to the
+  database in Data.
+
+If a task genuinely requires SwiftData, stop and explain the conflict instead of
+introducing it.
 
 ## Implementing a feature (the standard slice)
 

@@ -89,6 +89,31 @@ used. Pulling composition into its own package fixes both problems:
 This is the classic composition-root pattern: exactly one component knows how the
 whole object graph is assembled, and it sits at the top.
 
+## Local storage
+
+On-device persistence uses **SQLiteData**
+([pointfreeco/sqlite-data](https://github.com/pointfreeco/sqlite-data)), not
+SwiftData. It is a thin, fast layer over SQLite (GRDB underneath) that keeps queries
+explicit: filtering, sorting, joining and aggregating happen in SQL rather than by
+materialising an object graph in memory. That suits this architecture better than
+SwiftData, whose `@Model` types are non-`Sendable` reference types tied to a live
+`ModelContext` — an awkward fit for a `Sendable`, actor-agnostic Data layer, and
+hard to test without standing up a container. SQLiteData also gives explicit
+migrations and optional CloudKit sync (`SyncEngine`) without changing the storage
+model.
+
+Where it lives: the dependency belongs to **Data only**. Domain keeps declaring
+repository protocols in terms of `Model` entities and never learns that SQLite
+exists. `@Table` types are persistence records — the storage-side twin of a DTO —
+and are mapped to `Model` entities at the Data boundary, exactly as `ArticleDTO` is
+for the network path, with SQLite failures mapped into `DomainError`. The database
+handle and its migrations are created in Data and bound in DI as a `.singleton`
+Factory, so the app target stays `@main`-only.
+
+SQLiteData's `@FetchAll` / `@FetchOne` property wrappers are deliberately *not* used
+in Presentation: they would wire a view straight to the database and bypass Domain.
+Views render a ViewModel's `ViewState`; the repository does the querying.
+
 ## Concurrency model
 
 The project adopts Swift 6.2+ "approachable concurrency" with per-layer default

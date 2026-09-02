@@ -34,6 +34,7 @@ opt_in_rules:
 disabled_rules:
   - todo                    # TODO/FIXME comments are fine during development
   - trailing_comma          # SwiftFormat owns comma style
+  - redundant_discardable_let  # `_ = foo()` doesn't compile inside a @ViewBuilder
 
 line_length:
   warning: 100
