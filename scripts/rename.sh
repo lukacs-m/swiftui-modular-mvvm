@@ -12,8 +12,6 @@
 #
 set -euo pipefail
 
-# ---- Resolve current name from project.yml --------------------------------
-
 if [[ ! -f project.yml ]]; then
   echo "error: run this from the repo root (project.yml not found)." >&2
   exit 1
@@ -28,19 +26,19 @@ if [[ -z "$NEW_NAME" ]]; then
   exit 1
 fi
 
-# ---- Validate the new name (must be a valid Swift identifier / target) -----
-
-if ! [[ "$NEW_NAME" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-  echo "error: '$NEW_NAME' is not a valid name." >&2
-  echo "Use letters, numbers, and underscores; must not start with a number." >&2
-  echo "(It becomes a Swift struct name and an Xcode target, so no spaces or dashes.)" >&2
+if ! [[ "$NEW_NAME" =~ ^[A-Za-z][A-Za-z0-9]*$ ]]; then
+  echo "error: use letters and numbers, starting with a letter (Swift type and bundle ID)." >&2
+  exit 1
+fi
+if ! printf 'struct %s {}\n' "$NEW_NAME" | swiftc -frontend -parse - >/dev/null 2>&1; then
+  echo "error: '$NEW_NAME' cannot be used as a Swift type name." >&2
   exit 1
 fi
 
 # Guard against collisions with the layer package names.
 case "$NEW_NAME" in
-  Common|Model|Domain|Data|DI|Presentation)
-    echo "error: '$NEW_NAME' collides with a layer package name." >&2
+  Common|Model|Domain|Data|DI|Presentation|App)
+    echo "error: '$NEW_NAME' is reserved by the scaffold." >&2
     exit 1 ;;
 esac
 
@@ -49,9 +47,16 @@ if [[ "$NEW_NAME" == "$OLD_NAME" ]]; then
   exit 0
 fi
 
-echo "Renaming '$OLD_NAME' → '$NEW_NAME'…"
+if [[ -e "App/$NEW_NAME" ]]; then
+  echo "error: App/$NEW_NAME already exists." >&2
+  exit 1
+fi
 
-# ---- Portable in-place sed (GNU + BSD/macOS) ------------------------------
+if [[ "${2:-}" == "--check" ]]; then
+  exit 0
+fi
+
+echo "Renaming '$OLD_NAME' → '$NEW_NAME'…"
 
 sed_i() {
   # usage: sed_i 'expr' file
@@ -62,8 +67,6 @@ sed_i() {
   fi
 }
 
-# ---- 1. Move the app source folder + file ---------------------------------
-
 if [[ -d "App/$OLD_NAME" ]]; then
   git mv "App/$OLD_NAME" "App/$NEW_NAME" 2>/dev/null || mv "App/$OLD_NAME" "App/$NEW_NAME"
 fi
@@ -72,11 +75,8 @@ if [[ -f "App/$NEW_NAME/$OLD_NAME.swift" ]]; then
     || mv "App/$NEW_NAME/$OLD_NAME.swift" "App/$NEW_NAME/$NEW_NAME.swift"
 fi
 
-# ---- 2. Rewrite references in known files ---------------------------------
-
 # App entry point: the `struct <name>: App` declaration.
 if [[ -f "App/$NEW_NAME/$NEW_NAME.swift" ]]; then
-  sed_i "s/struct ${OLD_NAME}: App/struct ${NEW_NAME}: App/" "App/$NEW_NAME/$NEW_NAME.swift"
   sed_i "s/${OLD_NAME}/${NEW_NAME}/g" "App/$NEW_NAME/$NEW_NAME.swift"
 fi
 
@@ -95,8 +95,6 @@ sed_i "s/${OLD_NAME}/${NEW_NAME}/g" Makefile
 if [[ -f README.md ]]; then
   sed_i "s/${OLD_NAME}/${NEW_NAME}/g" README.md
 fi
-
-# ---- 3. Remove the stale generated project (regenerate from the new spec) --
 
 rm -rf "${OLD_NAME}.xcodeproj" "${NEW_NAME}.xcodeproj"
 

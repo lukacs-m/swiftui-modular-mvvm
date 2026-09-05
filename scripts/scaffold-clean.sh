@@ -2,10 +2,9 @@
 #
 # Strip the example "Article" feature slice from the scaffold, leaving a clean
 # but still-compiling skeleton: six packages with their structural files intact
-# (ViewState, Log, the DI FactoryKit re-export) and a minimal app entry point.
+# (ViewState, DomainError, Log, the DI FactoryKit re-export) and a minimal app entry point.
 #
-# After running, each layer has a placeholder source so SPM still has something
-# to build. Replace the placeholders as you add your first real feature.
+# Empty targets receive placeholders; reusable state and error types survive.
 #
 # Usage:  ./scaffold-clean.sh [--force]
 #         --force   skip the confirmation prompt
@@ -21,11 +20,13 @@ EXAMPLE_FILES=(
   "Packages/Domain/Sources/Domain/FetchArticlesUseCase.swift"
   "Packages/Domain/Tests/DomainTests/FetchArticlesTests.swift"
   "Packages/Data/Sources/Data/ArticleDTO.swift"
-  "Packages/Data/Sources/Data/RemoteArticleRepository.swift"
+  "Packages/Data/Sources/Data/SampleArticleRepository.swift"
+  "Packages/Data/Tests/DataTests/ArticleRepositoryTests.swift"
   "Packages/DI/Sources/DI/Registrations/ArticleRegistrations.swift"
   "Packages/Presentation/Sources/Presentation/ArticleListView.swift"
   "Packages/Presentation/Sources/Presentation/ArticleListViewModel.swift"
   "Packages/Presentation/Tests/PresentationTests/ArticleListViewModelTests.swift"
+  "Packages/Presentation/Tests/PresentationTests/ArticleLifecycleTests.swift"
 )
 
 if [[ ! -d Packages ]]; then
@@ -42,7 +43,7 @@ fi
 if [[ "$FORCE" != "--force" ]]; then
   echo "This removes the example 'Article' feature from all six packages and"
   echo "replaces the app entry point with an empty scene. Structural files"
-  echo "(ViewState, Log, DI re-export) are kept."
+  echo "(ViewState, DomainError, Log, DI re-export) are kept."
   printf "Proceed? [y/N] "
   read -r reply
   case "$reply" in
@@ -54,7 +55,13 @@ fi
 # Resolve the current app name from project.yml so we rewrite the right file.
 APP_NAME="$(grep -E '^name:' project.yml | head -1 | sed -E 's/^name:[[:space:]]*//' | tr -d '[:space:]')"
 
-# ---- 1. Delete the example files ------------------------------------------
+# --force skips the prompt, not protection for customized example files.
+if [[ "$(git rev-parse --show-toplevel 2>/dev/null || true)" == "$(pwd -P)" ]]; then
+  if [[ -n "$(git status --porcelain -- "${EXAMPLE_FILES[@]}" "App/$APP_NAME/$APP_NAME.swift")" ]]; then
+    echo "error: example files have local changes; commit or save them before removing the slice." >&2
+    exit 1
+  fi
+fi
 
 for f in "${EXAMPLE_FILES[@]}"; do
   if [[ -f "$f" ]]; then
@@ -62,13 +69,13 @@ for f in "${EXAMPLE_FILES[@]}"; do
   fi
 done
 
-# ---- 2. Drop a placeholder into every now-empty target --------------------
 # SPM requires at least one source file per target.
 
 placeholder() {
   # $1 = file path, $2 = module name (for the comment)
   local path="$1" module="$2"
   mkdir -p "$(dirname "$path")"
+  if [[ -f "$path" ]]; then return; fi
   cat > "$path" <<EOF
 // Placeholder so the $module target has a source to compile.
 // Delete this once you add your first real type to $module.
@@ -76,17 +83,14 @@ EOF
 }
 
 placeholder "Packages/Model/Sources/Model/Placeholder.swift"             "Model"
-placeholder "Packages/Domain/Sources/Domain/Placeholder.swift"           "Domain"
 placeholder "Packages/Data/Sources/Data/Placeholder.swift"               "Data"
-placeholder "Packages/Presentation/Sources/Presentation/Placeholder.swift" "Presentation"
 
 # Keep the DI Registrations folder discoverable, but empty of features.
 placeholder "Packages/DI/Sources/DI/Registrations/Placeholder.swift"     "DI registrations"
 
-# Domain and Presentation lose their only test file — leave the test target
-# with a trivially-passing placeholder so `swift test` still runs. (git rm may
-# have removed the now-empty Tests directories, so recreate them first.)
+# Keep test discovery working after removing the example suites.
 mkdir -p "Packages/Domain/Tests/DomainTests"
+if [[ ! -f "Packages/Domain/Tests/DomainTests/PlaceholderTests.swift" ]]; then
 cat > "Packages/Domain/Tests/DomainTests/PlaceholderTests.swift" <<'EOF'
 import Testing
 
@@ -95,8 +99,10 @@ import Testing
     #expect(Bool(true))
 }
 EOF
+fi
 
 mkdir -p "Packages/Presentation/Tests/PresentationTests"
+if [[ ! -f "Packages/Presentation/Tests/PresentationTests/PlaceholderTests.swift" ]]; then
 cat > "Packages/Presentation/Tests/PresentationTests/PlaceholderTests.swift" <<'EOF'
 import Testing
 
@@ -105,8 +111,18 @@ import Testing
     #expect(Bool(true))
 }
 EOF
+fi
 
-# ---- 3. Reset the app entry point to an empty scene -----------------------
+mkdir -p "Packages/Data/Tests/DataTests"
+if [[ ! -f "Packages/Data/Tests/DataTests/PlaceholderTests.swift" ]]; then
+cat > "Packages/Data/Tests/DataTests/PlaceholderTests.swift" <<'EOF'
+import Testing
+
+@Test func dataPlaceholder() {
+    #expect(Bool(true))
+}
+EOF
+fi
 
 APP_FILE="App/$APP_NAME/$APP_NAME.swift"
 if [[ -f "$APP_FILE" ]]; then

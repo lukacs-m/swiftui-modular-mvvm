@@ -23,7 +23,6 @@ let package = Package(
         .library(name: "Common", targets: ["Common"]),
     ],
     targets: [
-        // Shared utilities, ViewState, logging. Depends on nothing internal.
         .target(
             name: "Common",
             swiftSettings: sharedSwiftSettings

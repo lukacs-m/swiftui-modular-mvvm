@@ -25,7 +25,6 @@ opt_in_rules:
   - sorted_first_last
   - redundant_nil_coalescing
   - toggle_bool
-  - unused_import
   - explicit_init
   - closure_spacing
   - operator_usage_whitespace

@@ -5,7 +5,6 @@ import FactoryTesting
 @testable import Presentation
 import Domain
 import Model
-import Common
 
 /// Mock use case registered against the container so the ViewModel resolves it.
 private struct MockFetchArticles: FetchArticlesUseCase {

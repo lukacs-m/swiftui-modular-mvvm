@@ -11,8 +11,13 @@ xcuserdata/
 # Swift Package Manager
 .build/
 .swiftpm/
-# Note: Package.resolved is intentionally NOT ignored — committing it pins exact
-# dependency versions so resolution is fast and deterministic for everyone.
+# Keep root and package Package.resolved files in version control.
+# The root lockfile is restored into the generated Xcode project by make generate.
 
 # macOS
 .DS_Store
+
+# Generated Info.plist is owned by project.yml
+App/*/Info.plist
+
+__pycache__/

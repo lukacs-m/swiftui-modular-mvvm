@@ -17,7 +17,7 @@ App (@main only)
  ▼
 Presentation ─────────► DI ──────► Data ──────► Domain ──────► Model ──────► Common
 (Views, ViewModels)  (composition  (impls,      (use cases,   (entities)   (utilities,
-                      root, DI)     DTOs)         protocols)                  ViewState)
+                      root, DI)     DTOs)         protocols)                  logging)
 ```
 
 Dependencies always point right (down the stack). A higher layer may use a lower
@@ -26,9 +26,8 @@ one; a lower layer knows nothing about anything above it.
 ## The layers
 
 ### Common
-Foundation-level helpers with no domain knowledge: the `ViewState` enum
-(idle / loading / loaded / empty / failed) that screens use to model async state,
-and a `Log` facade so other layers don't bind to a concrete logging backend.
+Shared utilities with no domain or presentation knowledge. `Log` exposes native
+`os.Logger` categories, preserving per-field privacy. `ViewState` lives in Presentation.
 Depends on nothing internal.
 
 ### Model
@@ -56,9 +55,8 @@ mappers, databases. It maps low-level errors (`URLError`, decoding failures) int
 dependency and is actor-agnostic.
 
 ### DI (composition root)
-The single place where abstractions are bound to implementations. DI imports every
-other layer and the Factory framework, and declares the `Container` registrations
-that connect, say, `any ArticleRepository` to `RemoteArticleRepository`. It exposes
+The single place where abstractions are bound to implementations. DI imports the lower layers and the Factory framework, and declares the `Container` registrations
+that connect, say, `any ArticleRepository` to `SampleArticleRepository`. It exposes
 those bindings as `Container` keyPaths that the Presentation layer injects against.
 
 Registrations live in `Sources/DI/Registrations/`, **one file per feature**, so the
@@ -73,8 +71,10 @@ cases (via the DI keyPaths) and expose screen state as a `ViewState`. Views are
 `body`. This package is **MainActor-isolated by default**, which fits a UI layer —
 you write straightforward main-thread code and only step off it deliberately.
 
-Presentation depends on Domain (for the protocols it injects) and DI (for the
-keyPaths), but **never on Data**. It cannot reference a concrete repository.
+Presentation imports Domain and DI, but must not import Data. It still builds
+Data transitively through DI and uses Factory APIs through the DI re-export.
+`make check-architecture` enforces forbidden imports and package dependency direction
+in CI; the composition pattern does not make Presentation independent of Factory.
 
 ## Why a separate DI package?
 
@@ -122,8 +122,10 @@ isolation:
 - **Presentation** sets `.defaultIsolation(MainActor.self)` — UI code is on the main
   actor by default. To run work off the main actor, mark a function `@concurrent`.
 - **Common, Model, Domain, Data, DI** are actor-agnostic (no default isolation).
-  Networking, persistence, and pure logic should run off the main thread, so pinning
-  these to `@MainActor` would be wrong.
+  With `NonisolatedNonsendingByDefault`, their async methods inherit the caller actor.
+  Mapping and sorting reached from a ViewModel can therefore execute on MainActor.
+  Use a targeted `@concurrent` function for substantial CPU work, or a persistence
+  actor that owns mutable state; do not add actor hops just for the small demo.
 - **App target** mirrors a fresh Xcode 26 project: MainActor default isolation +
   approachable concurrency, set in `project.yml`.
 
@@ -162,12 +164,29 @@ A complete `Article` slice ships as a worked example spanning all layers:
 | Layer | File(s) |
 |---|---|
 | Model | `Article.swift` |
-| Domain | `ArticleRepository.swift` (protocol + `DomainError`), `FetchArticlesUseCase.swift` |
-| Data | `ArticleDTO.swift`, `RemoteArticleRepository.swift` (stubbed transport) |
+| Domain | `ArticleRepository.swift`, `DomainError.swift`, `FetchArticlesUseCase.swift` |
+| Data | `ArticleDTO.swift`, `SampleArticleRepository.swift` (stubbed transport) |
 | DI | `Registrations/ArticleRegistrations.swift` |
-| Presentation | `ArticleListViewModel.swift`, `ArticleListView.swift` |
-| Tests | `DomainTests/FetchArticlesTests.swift`, `PresentationTests/ArticleListViewModelTests.swift` |
+| Presentation | `ViewState.swift`, `ArticleListViewModel.swift`, `ArticleListView.swift` |
+| Tests | Domain sorting/error tests, Data mapping/cancellation tests, Presentation state/lifecycle tests |
 
 Use it as the pattern to copy. To remove it and start clean, run `make new-project`.
 Step-by-step instructions for adding your own feature are in `README.md`
 ("Adding a new feature") and `AGENTS.md` ("Implementing a feature").
+
+## Error and screen contracts
+
+Repository mapping is all-or-nothing for the sample: invalid UUIDs or dates throw
+`DomainError.invalidData`. Cancellation is rethrown separately, including cancelled
+URL requests; it is not a network/unknown operational failure. `DomainError.swift`
+survives removal of the Article example.
+
+Presentation owns `ViewState`, single-flight loading, and the localized user-facing
+error messages. Initial loads and retries show loading; refresh preserves content.
+Cancellation restores the previous state, and refresh failures use a separate inline
+error so loaded content remains accessible. Interface strings resolve from the
+Presentation resource bundle. Previews render state directly without shared DI overrides.
+
+The root app lockfile and DI/Presentation package lockfiles are retained outside
+build artifacts. Generation restores the app lockfile; normal build/test commands
+require the pins. See README for dependency updates and bootstrap regression checks.

@@ -18,6 +18,7 @@ let presentationSwiftSettings: [SwiftSetting] = sharedSwiftSettings + [
 
 let package = Package(
     name: "Presentation",
+    defaultLocalization: "en",
     platforms: [
         .iOS(.v26),
         .macOS(.v26)
@@ -45,6 +46,7 @@ let package = Package(
                 .product(name: "Domain", package: "Domain"),
                 .product(name: "DI", package: "DI"),
             ],
+            resources: [.process("Resources")],
             swiftSettings: presentationSwiftSettings
         ),
         .testTarget(

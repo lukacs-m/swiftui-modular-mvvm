@@ -53,7 +53,7 @@ That’s the whole flow: **Use this template → `make new-project NAME=…` →
 
 > Prefer to keep the example feature while you learn the structure? Skip step 2,
 > run `make setup` to generate the project, and explore the `Article` slice first.
-> Run `make new-project` later when you’re ready to start clean.
+> Run `make new-project` later when you’re ready to start clean. It refuses to delete uncommitted changes in example files, even though the Makefile skips the interactive prompt.
 
 ## Architecture
 
@@ -69,7 +69,7 @@ That’s the whole flow: **Use this template → `make new-project NAME=…` →
 │  Presentation     │          │  DI (composition root)│
 │  Views + ViewModels│───────▶ │  Container registrations│
 └─────────┬─────────┘          └──────────┬───────────┘
-          │                               │ imports every layer
+          │                               │ imports lower layers
           │                    ┌──────────┴──────────┐
           │                    ▼                     ▼
           │            ┌──────────────┐      ┌──────────────┐
@@ -83,7 +83,7 @@ That’s the whole flow: **Use this template → `make new-project NAME=…` →
                                   └─────────────────┬─────────────────┘
                                                     ▼
                                   ┌──────────────────────────────────┐
-                                  │  Common   Utilities, ViewState     │
+                                  │  Common   Shared utilities         │
                                   └──────────────────────────────────┘
 ```
 
@@ -93,12 +93,12 @@ Higher layers depend on lower ones through local path references
 
 ### The packages
 
-- **Common** (`Packages/Common`) — shared utilities, `ViewState`, logging. No internal dependencies.
+- **Common** (`Packages/Common`) — shared utilities and native `Logger` categories. No internal dependencies.
 - **Model** (`Packages/Model`) — domain entities as plain structs/enums. → Common.
 - **Domain** (`Packages/Domain`) — business logic, use cases, and repository *protocols* (abstractions). → Model, Common. Pure Swift — does **not** depend on Factory, networking, persistence, or UI.
 - **Data** (`Packages/Data`) — concrete implementations of Domain protocols, DTOs, mappers. → Domain, Model, Common. The only layer that knows about transport/persistence. Does **not** depend on Factory.
-- **DI** (`Packages/DI`) — the **composition root**. The only package that imports Factory for registration. It imports every layer, binds Domain protocols to Data implementations, and exposes the `Container` keyPaths that ViewModels inject against. Registrations live under `Sources/DI/Registrations/`, one file per feature, so the wiring scales. → Common, Model, Domain, Data, FactoryKit.
-- **Presentation** (`Packages/Presentation`) — `@MainActor @Observable` ViewModels and SwiftUI Views. ViewModels inject Domain protocols via the keyPaths from DI. → Domain, Model, Common, DI. Never imports Data directly.
+- **DI** (`Packages/DI`) — the **composition root**. The only package that imports Factory for registration. It imports lower layers, binds Domain protocols to Data implementations, and exposes the `Container` keyPaths that ViewModels inject against. Registrations live under `Sources/DI/Registrations/`, one file per feature, so the wiring scales. → Common, Model, Domain, Data, FactoryKit.
+- **Presentation** (`Packages/Presentation`) — `ViewState`, `@MainActor @Observable` ViewModels and SwiftUI Views. ViewModels inject Domain protocols via the keyPaths from DI. → Domain, Model, Common, DI. Never imports Data directly.
 
 The dependency direction is always: View → ViewModel → Domain (protocol), with DI
 binding Domain ← Data at the composition root. ViewModels and Views are fully
@@ -118,7 +118,7 @@ into per-feature files as the app grows.
 
 ## Dependency injection — Factory (FactoryKit)
 
-- Factory lives **only** in the DI package. `import DI` brings in `Container`, `@Injected`, etc. (DI re-exports FactoryKit), so ViewModels import DI rather than FactoryKit directly.
+- Factory registrations live **only** in DI; Presentation uses Factory APIs through DI and depends on Data transitively. Presentation tests also depend on FactoryTesting. `import DI` brings in `Container`, `@Injected`, etc. (DI re-exports FactoryKit), so ViewModels import DI rather than FactoryKit directly.
 - Registrations live in `Packages/DI/Sources/DI/Registrations/`, one file per feature (e.g. `ArticleRegistrations.swift`), binding protocol types to concrete implementations with the `self { }` sugar.
 - ViewModels use `@ObservationIgnored @Injected(\.someUseCase)`.
 - Previews swap in mocks with `Container.shared.x.preview { Mock() }`.
@@ -138,11 +138,11 @@ into per-feature files as the app grows.
 A complete vertical slice ships as a reference, spanning all layers:
 
 `Article` (Model) → `ArticleRepository` protocol + `FetchArticles` use case (Domain)
-→ `RemoteArticleRepository` + DTO/mapper (Data) → `ArticleRegistrations` (DI)
+→ `SampleArticleRepository` + DTO/mapper (Data) → `ArticleRegistrations` (DI)
 → `ArticleListViewModel` + `ArticleListView` (Presentation).
 
 The repository's network call is stubbed with sample data so the app runs out of
-the box. Replace `loadRawArticles()` in `RemoteArticleRepository` with a real
+the box. Replace the sample repository registration in DI with a real
 URLSession request to go live. To remove the example entirely, run
 `make new-project` (see *Starting from a clean slate*).
 
@@ -161,7 +161,7 @@ upcoming features, written against the stricter future-default semantics today:
 **Default actor isolation** differs by layer, on purpose:
 
 - **Presentation** sets `.defaultIsolation(MainActor.self)` — it's all SwiftUI Views and `@Observable` ViewModels, so main-actor-by-default is the right call.
-- **Common, Model, Domain, Data, DI** stay actor-agnostic (no default isolation). Domain and Data especially should *not* be pinned to the main actor — networking, persistence, and pure logic belong off the main thread.
+- **Common, Model, Domain, Data, DI** stay actor-agnostic (no default isolation). Their async methods inherit the caller actor with `NonisolatedNonsendingByDefault`: mapping and sorting called from a ViewModel can run on MainActor. Use a targeted `@concurrent` function for substantial CPU work, or an actor that owns persistence. `async` alone does not move work off MainActor.
 - The **app target** mirrors a fresh Xcode 26 project: `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` and `SWIFT_APPROACHABLE_CONCURRENCY = YES` in `project.yml`.
 
 The toolchain is pinned in `.swift-version` (Swift 6.3.1). With [Swiftly](https://www.swift.org/install/),
@@ -173,6 +173,7 @@ The toolchain is pinned in `.swift-version` (Swift 6.3.1). With [Swiftly](https:
 - **SwiftLint** — config in `.swiftlint.yml`, tuned to the layered design (keeps explicit `public`, allows short DI identifiers). `make lint`. Install with `brew install swiftlint`.
 - **CI** — `.github/workflows/ci.yml` runs on every push/PR to `main`: selects the pinned Xcode, installs the tools, then runs `make format-check`, `make lint`, `make generate`, `make test`, and `make build`. The runner image and Xcode path are pinned in the workflow; GitHub rotates these over time, so update them if a run fails to find Xcode.
 
+`make lint` runs regular SwiftLint rules; it does not claim to analyze unused imports.
 Both tools are optional locally (the Makefile prints an install hint if missing) but required in CI. The `.swiftformat` options are intentionally conservative — run `swiftformat --inferoptions Packages App` to tune them to your style.
 
 ## Quick start
@@ -194,42 +195,36 @@ make rename NAME=NewName   # rename the project (app shell only, not the layers)
 make clean                 # remove the generated project and build artifacts
 ```
 
-### Why packages seem to "fetch again" when you open the project
+### Dependency pins and test destinations
 
-`make setup` only generates the project by default — it does **not** resolve
-packages unless you pass `RESOLVE=1`. Even with `RESOLVE=1`, Xcode still runs a
-quick resolution *validation* pass on first open (checking `Package.resolved`
-against the manifests). That pass is a cache hit, not a fresh download: SwiftPM
-caches cloned repositories globally (`~/Library/Caches/org.swift.swiftpm`), shared
-between the command line and Xcode. To keep it fast and deterministic,
-`Package.resolved` is committed (it pins exact versions), so resolution never has
-to re-query GitHub for tags.
+The root `Package.resolved` is the generated app lockfile kept outside the ignored
+Xcode project. `make generate` restores it into the Xcode workspace. The DI and
+Presentation package roots also keep their generated lockfiles. Commit all three;
+`make check-locks` verifies that their external identities and versions agree.
+`make clean`, rename, and new-project preserve these pins.
 
-There are two *separate* resolution scopes, which is the source of the "twice"
-feeling:
+`make resolve` and `make resolve-app` explicitly resolve dependencies and write
+lockfiles. Review the resulting files together before committing a dependency
+update. Normal `make test`, `make build`, and `make test-app` require the resolved
+versions. Opening Xcode still validates the graph and may populate its separate
+checkout directory; a lockfile does not eliminate resolution checks or downloads.
 
-- **Into the Xcode project** — `make resolve-app` (or `make setup RESOLVE=1`) writes into Xcode's `DerivedData/.../SourcePackages`. This is what the IDE reads.
-- **Per layer package via the CLI** — `make resolve` writes a `Packages/<layer>/.build` checkout for each package. Only needed for command-line builds/tests without Xcode (e.g. `cd Packages/Domain && swift test`) or in CI.
-
-Both share the same global repository cache, so whichever runs second is a cache
-hit — but each keeps its own working checkout, which is why you may see resolution
-happen in both places.
-
-`make test` runs each package's suite in parallel (via `make -j`), and within a
-package Swift Testing parallelizes too. To target a
-specific simulator for `build` / `test-app`, override the destination:
+`make test` executes Domain, Data, and Presentation tests on macOS, with at most
+three package suites building at once. `make test-app` runs the same test targets
+on an available iPhone simulator using the shared scheme generated by XcodeGen.
+The simulator tests are also required in CI, covering iOS-specific compilation and
+resource behavior. The generic simulator destination is sufficient for build-only work:
 
 ```
-make build DESTINATION='platform=iOS Simulator,name=iPhone 16 Pro'
+make build
+make test-app
+make test-app TEST_DESTINATION='platform=iOS Simulator,name=iPhone 17'
 ```
 
-> Each package declares both `.iOS(.v26)` and `.macOS(.v26)` in its manifest.
-> `swift test` builds for the host Mac (not the simulator), so the macOS platform
-> is required for APIs like `os.Logger` and `ContentUnavailableView` to be
-> available during command-line testing. The app itself still ships iOS-only —
-> the layers are UI-light and portable, so testing them on macOS is sound. If you
-> add genuinely iOS-only code to a package, test it via `make test-app` (iOS
-> simulator) instead.
+The local toolchain must support the declared Swift 6.3 and macOS/iOS 26 targets.
+Host tests do not replace simulator testing. Xcode compiles String Catalogs into
+localized resources; the SwiftPM CLI copies catalogs as resources, so validate
+translated UI and catalogs through the simulator path.
 
 ### Renaming the project
 
@@ -248,8 +243,8 @@ make new-project NAME=Acme    # …and rename the project at the same time
 ```
 
 This deletes the `Article` files from all six packages, keeps the structural
-pieces (`ViewState`, `Log`, the DI re-export), drops a placeholder into each
-target so SPM still compiles, and resets the app entry point to an empty scene.
+pieces (`Presentation.ViewState`, `DomainError`, `Log`, the DI re-export, and
+localization resources), adds placeholders only where sources are needed, and resets the app entry point to an empty scene.
 Then add your first feature following the slice in *Adding a new feature* below.
 
 > The `make` targets above are the entry points. They wrap helper scripts in
@@ -307,3 +302,34 @@ Re-run `xcodegen generate` whenever you change `project.yml`.
    case via `@Injected`) and a View that renders its `ViewState`.
 6. **Tests** — cover the use case (Domain package) and the ViewModel
    (Presentation package) against mocks.
+
+## Template regression checks
+
+- `make check-architecture` checks package dependency direction and forbidden source imports.
+- `make check-locks` compares app, DI, and Presentation dependency pins.
+- `make test-templates` expands all three Xcode templates into a disposable copy and compiles them.
+- `make test-scaffold` tests invalid names, resolution failure, fresh-project generation, rename,
+  cleanup, lock preservation, customization protection, host tests, and an iOS simulator build
+  in disposable copies. Names must be valid Swift type names and bundle-ID components:
+  letters and numbers, starting with a letter; reserved names and underscores are rejected.
+
+All four checks run in CI. No networking, authentication, database implementation, or navigation
+framework is preinstalled just to satisfy hypothetical future features.
+
+## Screen lifecycle, privacy, and localization
+
+The example allows one load at a time. Cancellation restores the previous state so an
+interrupted initial load can retry on reappearance. Refresh keeps the List visible, even on
+failure, and exposes an inline retry action. Empty and failed screens also offer recovery.
+Mapping rejects invalid identifiers and dates instead of dropping records or inventing dates.
+Sample article IDs and dates are fixed.
+
+`Log.data` is an `os.Logger`: import `os` at call sites and use its native interpolation.
+Dynamic strings remain private by default. Mark a field public only when its contents are
+intentionally suitable for logs; do not interpolate personal data into a public message.
+
+Presentation owns `ViewState` and its localized error resources. Interface strings use
+`Bundle.module` and `Resources/Localizable.xcstrings` (English and French examples).
+Server/user-provided text is displayed verbatim. Loaded, empty, loading, failed, refresh-error,
+large-text, right-to-left, and French previews are independent of the container and network.
+Check VoiceOver, large Dynamic Type, and translated layouts when extending the UI.

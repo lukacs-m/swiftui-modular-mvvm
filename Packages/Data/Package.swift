@@ -24,10 +24,6 @@ let package = Package(
         .package(path: "../Domain"),
     ],
     targets: [
-        // Concrete implementations of Domain protocols, DTOs, and mappers.
-        // The only layer that knows about URLSession, persistence, etc.
-        // NOT MainActor-isolated by default: networking/persistence should run
-        // off the main actor. Factory registrations live in the DI package.
         .target(
             name: "Data",
             dependencies: [
@@ -35,6 +31,11 @@ let package = Package(
                 .product(name: "Model", package: "Model"),
                 .product(name: "Domain", package: "Domain"),
             ],
+            swiftSettings: sharedSwiftSettings
+        ),
+        .testTarget(
+            name: "DataTests",
+            dependencies: ["Data", .product(name: "Domain", package: "Domain"), .product(name: "Model", package: "Model")],
             swiftSettings: sharedSwiftSettings
         ),
     ],

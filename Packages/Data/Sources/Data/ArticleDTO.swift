@@ -1,20 +1,22 @@
+import Domain
 import Foundation
 import Model
 
-/// Data Transfer Object — mirrors the wire format, isolated from the domain Model.
-/// Keeping DTOs here means a change in the API shape never leaks past the Data layer.
-struct ArticleDTO: Decodable {
+struct ArticleDTO: Decodable, Sendable {
     let id: String
     let title: String
     let summary: String
     let publishedAt: String
-}
 
-extension ArticleDTO {
-    /// Maps the wire representation into a clean domain entity.
-    func toDomain() -> Article? {
-        guard let uuid = UUID(uuidString: id) else { return nil }
-        let date = ISO8601DateFormatter().date(from: publishedAt) ?? Date()
+    func toDomain() throws -> Article {
+        guard let uuid = UUID(uuidString: id) else { throw DomainError.invalidData }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
+        // ISO8601DateFormatter normalizes impossible dates instead of rejecting them.
+        formatter.isLenient = false
+        guard let date = formatter.date(from: publishedAt) else { throw DomainError.invalidData }
         return Article(id: uuid, title: title, summary: summary, publishedAt: date)
     }
 }

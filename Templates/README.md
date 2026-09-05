@@ -27,8 +27,7 @@ Remove them with `make uninstall-templates`.
 | **UseCase Sync** | `<Name>UseCase` protocol + `<Name>` struct (`throws`) | Domain | UseCase name, protocol name |
 
 All three set `SupportsSwiftPackage`, so they work when you create a file inside a
-package target. The async UseCase includes a commented `@concurrent` example
-explaining when to force work off the caller's actor onto a background thread.
+package target. The async UseCase includes a `@concurrent` guidance for substantial CPU work that must leave the caller actor.
 
 ## After generating
 
@@ -49,3 +48,9 @@ from the file name. This is deliberate: Xcode's `___FILEBASENAME___` resolves to
 the full file name, so a file named `ProfileView.swift` would expand
 `___FILEBASENAME___ViewModel` to `ProfileViewViewModel`. Using a named option
 avoids that and keeps `ProfileView` / `ProfileViewModel` correct.
+
+`ViewState` belongs to Presentation, so the generated ViewModel does not import
+Common for its state. Run `make test-templates` to expand and compile these templates
+with the real package settings; this is also checked in CI. Add screen lifecycle
+behavior following ArticleListViewModel rather than adding shared container state
+or unstructured retry tasks to the template.
