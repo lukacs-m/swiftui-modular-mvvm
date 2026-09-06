@@ -27,7 +27,7 @@ let package = Package(
     ],
     targets: [
         // Composition root. The ONLY place that imports Factory for registration.
-        // Imports every layer, binds Domain protocols to Data implementations, and
+        // Imports lower layers, binds Domain protocols to Data implementations, and
         // exposes the Container keyPaths that Presentation injects against.
         //
         // Registrations live under Sources/DI/Registrations, one file per feature,

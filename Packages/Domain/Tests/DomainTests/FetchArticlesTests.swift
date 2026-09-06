@@ -13,10 +13,10 @@ private struct MockArticleRepository: ArticleRepository {
 
 private func makeArticle(daysAgo: Int, title: String) -> Article {
     Article(
-        id: UUID(),
+        id: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)),
         title: title,
         summary: "",
-        publishedAt: Date().addingTimeInterval(TimeInterval(-86_400 * daysAgo))
+        publishedAt: Date(timeIntervalSince1970: 1_767_355_200).addingTimeInterval(TimeInterval(-86_400 * daysAgo))
     )
 }
 

@@ -61,29 +61,29 @@ from `Foo` appears in this file's public API**, the import must be `public impor
   (e.g. public `var body: some View` → needs `public import SwiftUI`)
 
 If a type from `Foo` is used **only** in internal/private code, keep `import Foo`
-plain. Don't over-apply `public import` — an unused or needlessly-public import will
-be flagged.
+plain. Don't over-apply `public import` — avoid unused and needlessly-public imports during review; ordinary SwiftLint lint
+does not perform unused-import analysis.
 
 Worked examples currently in the codebase:
 - `Model/Article.swift`: `public import Foundation` (public `UUID`/`Date` properties)
 - `Domain/*`: `public import Model` (public APIs return `[Article]`)
-- `Data/RemoteArticleRepository.swift`: `public import Model` + `public import Domain`
+- `Data/SampleArticleRepository.swift`: `public import Model` + `public import Domain`
 - `DI/Registrations/ArticleRegistrations.swift`: `public import FactoryKit` +
   `public import Domain` (public `Factory<...>` and Domain protocols)
 - `Presentation/ArticleListViewModel.swift`: `public import Observation` +
-  `public import Model` + `public import Common`
+  `public import Model` + `public import Foundation`
 - `Presentation/ArticleListView.swift`: `public import SwiftUI`
 
 ## The packages
 
 | Package | Role | Depends on | Notes |
 |---|---|---|---|
-| **Common** | Utilities, `ViewState`, logging | — | No internal deps |
+| **Common** | Utilities, native Logger categories | — | No internal deps |
 | **Model** | Entities as `Sendable` value types | Common | No logic |
 | **Domain** | Use cases + repository protocols | Model, Common | Pure Swift, no Factory, actor-agnostic |
 | **Data** | Repo implementations, DTOs, mappers | Domain, Model, Common | Only layer touching URLSession/persistence, no Factory |
 | **DI** | Composition root, `Container` registrations | all layers, FactoryKit | The ONLY package importing Factory; re-exports FactoryKit |
-| **Presentation** | `@Observable` ViewModels + SwiftUI Views | Domain, Model, Common, DI | MainActor-by-default; never imports Data |
+| **Presentation** | `ViewState`, `@Observable` ViewModels + SwiftUI Views | Domain, Model, Common, DI | MainActor-by-default; never imports Data |
 
 The app target links **Presentation** (root views) and **DI** (so registrations are
 compiled into the binary).
@@ -163,7 +163,10 @@ Match the existing `Article` slice's structure and naming. If it has been remove
 - Inject with `@ObservationIgnored @Injected(\.keyPath)`.
 - **Pull-to-refresh**: the refresh path must NOT switch `state` to `.loading` — that
   tears down the `List` (and its refresh control) mid-gesture. Keep current content
-  and only update when new data arrives. See `ArticleListViewModel.load(showLoading:)`.
+  and only update when new data arrives. See `ArticleListViewModel.reload()`. Refresh failures preserve loaded content and
+  expose a separate localized error. Only one request may be active at a time.
+- Propagate cancellation separately from `DomainError`; restore the previous UI state
+  when a load is cancelled. Retry tasks should be owned by the view lifetime.
 - Guard re-entrant `.task` triggers (`guard case .idle = state else { return }`).
 
 ## Factory (FactoryKit) conventions
@@ -173,7 +176,8 @@ Match the existing `Article` slice's structure and naming. If it has been remove
 - Use explicit scopes (`.singleton`, `.cached`, `.shared`) where a shared lifetime
   is intended; default is unique.
 - Bind protocol existentials: `Factory<any SomeRepository>`.
-- Previews: `Container.shared.x.preview { Mock() }`, mock defined in the `#Preview`.
+- Prefer previews that render explicit state without mutating the shared container.
+  When testing a full injection path in previews, use `.preview { Mock() }`.
 - ViewModels import `DI`, never FactoryKit directly.
 
 ## Build, test, and tooling
@@ -182,7 +186,9 @@ Use the Makefile (run `make help` for all targets). Never hand-edit the generate
 `.xcodeproj`; edit `project.yml` then `make generate`.
 
 - `make test` — runs each package's `swift test` in parallel (builds for host Mac).
-- `make build` — builds the app for the iOS simulator.
+- `make build` - builds for a generic iOS simulator.
+- `make test-app` - executes package tests on an available simulator; override `TEST_DESTINATION`.
+- `make check-architecture check-locks test-templates test-scaffold` - template regression checks.
 - `make lint` / `make format` — SwiftLint / SwiftFormat. Both skip `Tests/` and
   `Package.swift`.
 - `make generate` — regenerate the Xcode project from `project.yml`.
@@ -195,7 +201,8 @@ Helper scripts live in `scripts/`; invoke them via `make`, not directly.
 
 - Update the relevant `Package.swift` AND `project.yml`.
 - If adding a new layer, add it to the Makefile's `PACKAGES` list.
-- `Package.resolved` is committed to pin versions.
+- Retain the generated root app `Package.resolved` plus DI/Presentation lockfiles.
+  Run `make check-locks`; normal build/test commands enforce the pins.
 
 ## Verification before claiming done
 
@@ -204,3 +211,17 @@ Helper scripts live in `scripts/`; invoke them via `make`, not directly.
 - New public API has correct `public import` lines.
 - No layer-boundary violation was introduced.
 - Existentials use `any`.
+
+## Resource and isolation conventions
+
+- `ViewState` lives in Presentation. Its errors use `LocalizedStringResource`, not
+  eagerly localized strings. UI literals use the Presentation `Bundle.module` catalog;
+  display server/user content verbatim. Add state, large-text, and RTL previews.
+- A package without default MainActor isolation is actor-agnostic, not automatically
+  concurrent. With `NonisolatedNonsendingByDefault`, async methods inherit their caller's
+  actor. Use targeted `@concurrent` work for substantial CPU processing, or an actor
+  that owns persistence, and keep UI mutation on MainActor.
+- `Log.data` exposes native Logger interpolation. Dynamic strings are private by
+  default; never mark personal data public. Import `os` at Logger call sites.
+- Presentation uses Factory via DI and builds Data transitively. The forbidden direct
+  imports and declared package boundaries are checked by `make check-architecture`.

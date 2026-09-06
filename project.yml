@@ -66,3 +66,15 @@ targets:
         SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         TARGETED_DEVICE_FAMILY: "1,2"
+
+schemes:
+  MyApp:
+    build:
+      targets:
+        MyApp: all
+    test:
+      gatherCoverageData: true
+      targets:
+        - package: Domain/DomainTests
+        - package: Data/DataTests
+        - package: Presentation/PresentationTests

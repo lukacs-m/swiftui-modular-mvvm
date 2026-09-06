@@ -13,9 +13,6 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & Test
-    # macos-26 is the runner image carrying Xcode 26.x (Swift 6.3+). Its default
-    # Xcode already matches .swift-version, but we select explicitly below so CI
-    # stays deterministic as the image's default drifts.
     runs-on: macos-26
 
     steps:
@@ -36,9 +33,7 @@ jobs:
           swift --version
           xcodebuild -version
 
-      # SwiftFormat, SwiftLint, and xcbeautify are preinstalled on macos-26.
-      # Install only what might be missing (XcodeGen) and skip the rest.
-      - name: Install XcodeGen
+      - name: Install build and style tools
         run: brew install xcodegen swiftformat swiftlint
 
       - name: Check formatting
@@ -50,9 +45,21 @@ jobs:
       - name: Generate Xcode project
         run: make generate
 
+      - name: Check architecture and dependency pins
+        run: make check-architecture check-locks
+
+      - name: Check generated file templates
+        run: make test-templates
+
+      - name: Check fresh-project workflow
+        run: make test-scaffold
+
       - name: Test packages
         run: make test
 
       - name: Build app
-        run: make build DESTINATION='platform=iOS Simulator,name=iPhone 17'
+        run: make build
+
+      - name: Test on iOS Simulator
+        run: make test-app
 

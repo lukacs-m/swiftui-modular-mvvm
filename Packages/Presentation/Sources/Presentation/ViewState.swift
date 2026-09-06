@@ -1,12 +1,12 @@
-/// A reusable representation of an async-loaded screen's state.
-/// ViewModels expose this so Views can render loading, empty, loaded, and failure
-/// uniformly. Lives in Common because it carries no domain knowledge.
+public import Foundation
+
+/// State for a screen whose primary content is loaded asynchronously.
 public enum ViewState<Value: Sendable>: Sendable {
     case idle
     case loading
     case loaded(Value)
     case empty
-    case failed(String)
+    case failed(LocalizedStringResource)
 }
 
 public extension ViewState {
