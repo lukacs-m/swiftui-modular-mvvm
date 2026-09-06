@@ -3,6 +3,7 @@
   "strings": {
     "Articles": {
       "extractionState": "manual",
+      "generatesSymbol": false,
       "localizations": {
         "en": {
           "stringUnit": {
@@ -20,6 +21,7 @@
     },
     "Loading…": {
       "extractionState": "manual",
+      "generatesSymbol": false,
       "localizations": {
         "en": {
           "stringUnit": {
@@ -37,6 +39,7 @@
     },
     "Retry": {
       "extractionState": "manual",
+      "generatesSymbol": false,
       "localizations": {
         "en": {
           "stringUnit": {
@@ -54,6 +57,7 @@
     },
     "Reload": {
       "extractionState": "manual",
+      "generatesSymbol": false,
       "localizations": {
         "en": {
           "stringUnit": {
@@ -71,6 +75,7 @@
     },
     "No Articles": {
       "extractionState": "manual",
+      "generatesSymbol": false,
       "localizations": {
         "en": {
           "stringUnit": {
@@ -88,6 +93,7 @@
     },
     "Couldn't Load": {
       "extractionState": "manual",
+      "generatesSymbol": false,
       "localizations": {
         "en": {
           "stringUnit": {
@@ -105,6 +111,7 @@
     },
     "Check back later for new stories.": {
       "extractionState": "manual",
+      "generatesSymbol": false,
       "localizations": {
         "en": {
           "stringUnit": {
@@ -122,6 +129,7 @@
     },
     "No connection. Check your network and retry.": {
       "extractionState": "manual",
+      "generatesSymbol": false,
       "localizations": {
         "en": {
           "stringUnit": {
@@ -139,6 +147,7 @@
     },
     "Nothing here yet.": {
       "extractionState": "manual",
+      "generatesSymbol": false,
       "localizations": {
         "en": {
           "stringUnit": {
@@ -156,6 +165,7 @@
     },
     "The articles could not be read. Please retry.": {
       "extractionState": "manual",
+      "generatesSymbol": false,
       "localizations": {
         "en": {
           "stringUnit": {
@@ -173,6 +183,7 @@
     },
     "Something went wrong. Please retry.": {
       "extractionState": "manual",
+      "generatesSymbol": false,
       "localizations": {
         "en": {
           "stringUnit": {

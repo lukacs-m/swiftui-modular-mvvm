@@ -187,6 +187,12 @@ Cancellation restores the previous state, and refresh failures use a separate in
 error so loaded content remains accessible. Interface strings resolve from the
 Presentation resource bundle. Previews render state directly without shared DI overrides.
 
+Keep `generatesSymbol: false` on the catalog's manual entries while supporting
+Xcode 26.4: its generated string accessors conflict with the package's default
+MainActor isolation. The sample uses string keys directly, so those accessors are
+unused; catalog compilation and translations remain enabled. `make test-scaffold`
+checks the generator output to prevent this regression.
+
 The root app lockfile and DI/Presentation package lockfiles are retained outside
 build artifacts. Generation restores the app lockfile; normal build/test commands
 require the pins. See README for dependency updates and bootstrap regression checks.
