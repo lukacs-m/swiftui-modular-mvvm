@@ -4,7 +4,7 @@
 #   make setup      install tooling, generate the Xcode project, resolve packages
 #   make generate   regenerate MyApp.xcodeproj from project.yml
 #   make open       open the project in Xcode (generates first if missing)
-#   make test       run every package's test suite
+#   make test       run all module tests
 #   make build      build the app for the simulator
 #   make clean      remove generated project + build artifacts
 
@@ -16,8 +16,7 @@ DESTINATION  ?= generic/platform=iOS Simulator
 TEST_DESTINATION ?= $(shell python3 scripts/simulator.py)
 APP_LOCK := $(PROJECT)/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
-# Layer packages, in dependency order (lowest first).
-PACKAGES     := Common Model Domain Data DI Presentation
+PACKAGE_PATH := Packages/AppModules
 
 # Use xcbeautify for readable xcodebuild output if it's installed.
 XCBEAUTIFY   := $(shell command -v xcbeautify 2>/dev/null)
@@ -90,12 +89,8 @@ resolve-app: $(PROJECT) ## Resolve the app and retain its generated lockfile out
 	@echo "✅ Resolved app dependencies."
 
 .PHONY: resolve
-resolve: ## Resolve each layer package via the SwiftPM CLI (for command-line builds)
-	@for pkg in $(PACKAGES); do \
-		echo "📦 Resolving Packages/$$pkg…"; \
-		(cd Packages/$$pkg && swift package resolve) || exit 1; \
-	done
-	@echo "✅ All packages resolved."
+resolve: ## Resolve AppModules dependencies for command-line builds
+	@swift package --package-path $(PACKAGE_PATH) resolve
 
 .PHONY: build
 build: $(PROJECT) ## Build the app for the simulator
@@ -107,40 +102,9 @@ build: $(PROJECT) ## Build the app for the simulator
 		-skipMacroValidation \
 		| $(FORMAT)
 
-#
-# `make test` runs each package's suite in parallel via `make -j`. Within a
-# package, Swift Testing already parallelizes (the @Suite(.container) trait keeps
-# the Factory tests isolated); this adds cross-package parallelism on top.
-#
-# Note: macOS ships GNU Make 3.81, which lacks the `-Otarget` output-sync flag
-# (Make 4.0+). To keep parallel output readable on stock macOS, each package
-# target captures its own output to a temp log and prints it as one block when
-# done, instead of relying on `-O`.
-
-# Packages that actually have a Tests/ directory.
-TEST_PACKAGES := $(foreach p,$(PACKAGES),$(if $(wildcard Packages/$(p)/Tests),$(p)))
-TEST_TARGETS  := $(addprefix test-,$(TEST_PACKAGES))
-
 .PHONY: test
-test: ## Run every package's test suite in parallel
-	@echo "🧪 Running tests for: $(TEST_PACKAGES)"
-	@echo "   (compiling each package — first run can take a while with no output)"
-	@$(MAKE) --no-print-directory -j3 run-tests
-	@echo "✅ All package tests passed."
-
-.PHONY: run-tests
-run-tests: $(TEST_TARGETS)
-
-.PHONY: $(TEST_TARGETS)
-$(TEST_TARGETS): test-%:
-	@printf '  ▸ %s: building & testing…\n' "$*"
-	@log=$$(mktemp); \
-	if (cd Packages/$* && swift test --force-resolved-versions) >"$$log" 2>&1; then \
-		printf '  ✅ %s passed\n' "$*"; sed 's/^/     /' "$$log"; rm -f "$$log"; \
-	else \
-		printf '  ❌ %s FAILED\n' "$*"; sed 's/^/     /' "$$log"; rm -f "$$log"; \
-		exit 1; \
-	fi
+test: ## Run all module tests on the host Mac
+	@swift test --package-path $(PACKAGE_PATH) --force-resolved-versions
 
 .PHONY: test-app
 test-app: $(PROJECT) ## Run package tests on an available simulator (override TEST_DESTINATION)
@@ -182,9 +146,7 @@ format-check: ## Check formatting without writing (used by CI)
 clean: ## Remove generated project and build artifacts
 	@rm -rf $(PROJECT)
 	@rm -rf build DerivedData
-	@for pkg in $(PACKAGES); do \
-		rm -rf Packages/$$pkg/.build; \
-	done
+	@rm -rf $(PACKAGE_PATH)/.build
 	@echo "🧹 Cleaned generated project and build artifacts."
 
 .PHONY: rename
@@ -230,7 +192,7 @@ uninstall-templates: ## Remove the installed Xcode file templates
 	@echo "🧹 Removed templates from $(TEMPLATE_DEST)."
 
 .PHONY: check-architecture check-locks test-scaffold test-templates
-check-architecture: ## Check package dependencies and forbidden imports
+check-architecture: ## Check target dependencies, isolation, and forbidden imports
 	@python3 scripts/check-architecture.py
 
 check-locks: ## Check that app and package roots pin identical external versions

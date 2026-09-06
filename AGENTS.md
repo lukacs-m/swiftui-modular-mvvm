@@ -7,26 +7,28 @@ and `docs/ARCHITECTURE.md`.
 ## What this project is
 
 A production iOS app built on a strict, layered MVVM architecture. The app target
-is a minimal shell; **all logic and UI live in six independent Swift packages**
-under `Packages/`, one per architectural layer. Dependency injection uses Factory
-(FactoryKit), isolated to a dedicated DI composition package.
+is a minimal shell; **all logic and UI live in six Swift modules**
+in one local package, `Packages/AppModules`. Each layer has its own target in
+`Packages/AppModules/Package.swift`. Dependency injection uses Factory (FactoryKit),
+isolated to the DI composition module.
 
 ## Golden rules (do not violate)
 
-1. **Layer boundaries are enforced by package dependencies.** Never add a
+1. **Layer boundaries are enforced by target dependencies.** Never add a
    dependency that points upward or sideways. The only legal direction is down:
    `Presentation → DI → Data → Domain → Model → Common`.
 2. **Domain and Data never import Factory/FactoryKit.** All DI registration lives
-   in the `DI` package.
+   in the `DI` module.
 3. **Presentation never imports `Data`.** ViewModels depend on Domain protocols,
    resolved through `Container` keyPaths from `DI`.
-4. **All `Container` registrations live in `Packages/DI/Sources/DI/Registrations/`**,
+4. **All `Container` registrations live in `Packages/AppModules/Sources/DI/Registrations/`**,
    one file per feature.
 5. **The app target contains only `@main`.** No logic, no views, no view models.
-6. **Only the `Presentation` package is MainActor-isolated by default.** Never add
-   `.defaultIsolation(MainActor.self)` to any other package.
-7. **Local persistence uses SQLiteData, never SwiftData**, and the dependency
-   lives in `Data` only. See *Local storage* below.
+6. **Only the `Presentation` production target is MainActor-isolated by default.**
+   Its `PresentationTests` target uses the same setting. Never add
+   `.defaultIsolation(MainActor.self)` to another target.
+7. **Local persistence uses SQLiteData, never SwiftData**, and its product
+   dependency lives in the `Data` target only. See *Local storage* below.
 
 If a task requires breaking a rule, stop and explain the conflict instead of
 proceeding.
@@ -36,7 +38,7 @@ proceeding.
 - **Swift 6.3 toolchain**, **Swift 6 language mode** (`swiftLanguageModes: [.v6]`).
 - Targets: **iOS 26**, **macOS 26** (macOS is declared so `swift test` builds for
   the host Mac).
-- Every package enables these upcoming features — all new code must satisfy them:
+- Every target enables these upcoming features — all new code must satisfy them:
   - `ExistentialAny` — write `any` on every existential (`any ArticleRepository`,
     not `ArticleRepository`, when used as a type rather than a conformance).
   - `InternalImportsByDefault` — imports are `internal` unless marked
@@ -74,15 +76,15 @@ Worked examples currently in the codebase:
   `public import Model` + `public import Foundation`
 - `Presentation/ArticleListView.swift`: `public import SwiftUI`
 
-## The packages
+## The modules
 
-| Package | Role | Depends on | Notes |
+| Module | Role | Depends on | Notes |
 |---|---|---|---|
 | **Common** | Utilities, native Logger categories | — | No internal deps |
 | **Model** | Entities as `Sendable` value types | Common | No logic |
 | **Domain** | Use cases + repository protocols | Model, Common | Pure Swift, no Factory, actor-agnostic |
 | **Data** | Repo implementations, DTOs, mappers | Domain, Model, Common | Only layer touching URLSession/persistence, no Factory |
-| **DI** | Composition root, `Container` registrations | all layers, FactoryKit | The ONLY package importing Factory; re-exports FactoryKit |
+| **DI** | Composition root, `Container` registrations | Common, Model, Domain, Data, FactoryKit | The ONLY production module importing Factory; re-exports FactoryKit |
 | **Presentation** | `ViewState`, `@Observable` ViewModels + SwiftUI Views | Domain, Model, Common, DI | MainActor-by-default; never imports Data |
 
 The app target links **Presentation** (root views) and **DI** (so registrations are
@@ -95,17 +97,18 @@ On-device persistence uses **SQLiteData**
 lightweight layer over SQLite — **not SwiftData**. Prefer it for anything that must
 survive a launch beyond trivial `UserDefaults` flags.
 
-- Add it to `Packages/Data/Package.swift` only —
+- Declare it in `Packages/AppModules/Package.swift` —
   `.package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.0.0")`,
-  product `.product(name: "SQLiteData", package: "sqlite-data")`. Never add it to
-  Common, Model, Domain, DI, or Presentation.
+  then add product `.product(name: "SQLiteData", package: "sqlite-data")` to
+  the **Data target only**. Never add that product to Common, Model, Domain, DI,
+  or Presentation. The package-level declaration does not give every target access.
 - `@Table` types are persistence records: the storage-side twin of a DTO. Keep them
   internal to Data and map them to `Model` entities with a `toDomain()` mapper.
   Domain's repository protocols keep speaking in `Model` types.
 - Map SQLite/GRDB failures into `DomainError` at the Data boundary, as the
   networking path already does.
 - Create the database and its migrations in Data (e.g. an `AppDatabase` helper) and
-  bind it in `Packages/DI/Sources/DI/Registrations/` as a `.singleton` Factory. The
+  bind it in `Packages/AppModules/Sources/DI/Registrations/` as a `.singleton` Factory. The
   app target is `@main`-only, so never configure the database there.
 - Do **not** use `@FetchAll` / `@FetchOne` in Presentation — they bind a view
   directly to the database and bypass Domain. ViewModels call use cases; repositories
@@ -119,26 +122,26 @@ introducing it.
 ## Implementing a feature (the standard slice)
 
 Produce the full vertical slice in this order. State which file goes in which
-package, and get import visibility right in every file.
+module, and get import visibility right in every file.
 
-1. **Model** — `Packages/Model/Sources/Model/<Entity>.swift`: a `Sendable` value
+1. **Model** — `Packages/AppModules/Sources/Model/<Entity>.swift`: a `Sendable` value
    type. `public import Foundation` if it exposes `UUID`/`Date`/etc.
-2. **Domain** — `Packages/Domain/Sources/Domain/`:
+2. **Domain** — `Packages/AppModules/Sources/Domain/`:
    - a repository protocol: `public protocol <Entity>Repository: Sendable { ... }`
    - a use case (callable struct): `public struct Fetch<Entity>: <Entity>UseCase`
      holding `private let repository: any <Entity>Repository`.
    - `public import Model` (entities appear in public signatures).
    - Map low-level failures to the `DomainError` vocabulary.
-3. **Data** — `Packages/Data/Sources/Data/`:
+3. **Data** — `Packages/AppModules/Sources/Data/`:
    - a concrete `public struct Remote<Entity>Repository: <Entity>Repository`.
    - DTO + `toDomain()` mapper (DTO is internal).
    - `public import Model` + `public import Domain`; plain `import Foundation` for
      internal use of `URLSession`/decoding.
-4. **DI** — `Packages/DI/Sources/DI/Registrations/<Entity>Registrations.swift`:
+4. **DI** — `Packages/AppModules/Sources/DI/Registrations/<Entity>Registrations.swift`:
    - `public extension Container { var <entity>Repository: Factory<any <Entity>Repository> { self { Remote<Entity>Repository() } } }`
      and the use-case factory wired to resolve the repository.
    - `public import FactoryKit` + `public import Domain`; plain `import Data`.
-5. **Presentation** — `Packages/Presentation/Sources/Presentation/`:
+5. **Presentation** — `Packages/AppModules/Sources/Presentation/`:
    - a `@MainActor @Observable public final class <Entity>ViewModel` exposing
      `public private(set) var state: ViewState<...>` and injecting the use case via
      `@ObservationIgnored @Injected(\.<entity>UseCase)`.
@@ -157,7 +160,7 @@ Match the existing `Article` slice's structure and naming. If it has been remove
 
 ## ViewModel conventions
 
-- `@MainActor @Observable public final class`. (The package is MainActor-by-default,
+- `@MainActor @Observable public final class`. (The target is MainActor-by-default,
   so `@MainActor` is redundant but kept for clarity.)
 - Expose read-only state: `public private(set) var state: ViewState<T>`.
 - Inject with `@ObservationIgnored @Injected(\.keyPath)`.
@@ -185,7 +188,7 @@ Match the existing `Article` slice's structure and naming. If it has been remove
 Use the Makefile (run `make help` for all targets). Never hand-edit the generated
 `.xcodeproj`; edit `project.yml` then `make generate`.
 
-- `make test` — runs each package's `swift test` in parallel (builds for host Mac).
+- `make test` - runs all module tests in one `swift test` invocation (host Mac).
 - `make build` - builds for a generic iOS simulator.
 - `make test-app` - executes package tests on an available simulator; override `TEST_DESTINATION`.
 - `make check-architecture check-locks test-templates test-scaffold` - template regression checks.
@@ -197,12 +200,18 @@ Use the Makefile (run `make help` for all targets). Never hand-edit the generate
 
 Helper scripts live in `scripts/`; invoke them via `make`, not directly.
 
-## When you change dependencies or add a package
+## When you change dependencies or add a target
 
-- Update the relevant `Package.swift` AND `project.yml`.
-- If adding a new layer, add it to the Makefile's `PACKAGES` list.
-- Retain the generated root app `Package.resolved` plus DI/Presentation lockfiles.
-  Run `make check-locks`; normal build/test commands enforce the pins.
+- Update `Packages/AppModules/Package.swift`: declare external packages once, and
+  assign their products only to the targets that need them. Internal dependencies
+  name targets directly, for example `dependencies: ["Domain", "Model"]`.
+- Update `project.yml` only when app-linked products or scheme test targets change.
+  The app links the Presentation and DI products from AppModules.
+- Update `scripts/check-architecture.py` when adding a target and its allowed edges.
+- Retain the generated root app `Package.resolved` and
+  `Packages/AppModules/Package.resolved`. Run `make check-locks`; normal build/test
+  commands enforce the pins. Use `make resolve resolve-app` for explicit resolution.
+- Keep AppModules and its module names stable when renaming the app shell.
 
 ## Verification before claiming done
 
@@ -217,11 +226,11 @@ Helper scripts live in `scripts/`; invoke them via `make`, not directly.
 - `ViewState` lives in Presentation. Its errors use `LocalizedStringResource`, not
   eagerly localized strings. UI literals use the Presentation `Bundle.module` catalog;
   display server/user content verbatim. Add state, large-text, and RTL previews.
-- A package without default MainActor isolation is actor-agnostic, not automatically
+- A target without default MainActor isolation is actor-agnostic, not automatically
   concurrent. With `NonisolatedNonsendingByDefault`, async methods inherit their caller's
   actor. Use targeted `@concurrent` work for substantial CPU processing, or an actor
   that owns persistence, and keep UI mutation on MainActor.
 - `Log.data` exposes native Logger interpolation. Dynamic strings are private by
   default; never mark personal data public. Import `os` at Logger call sites.
 - Presentation uses Factory via DI and builds Data transitively. The forbidden direct
-  imports and declared package boundaries are checked by `make check-architecture`.
+  imports and declared target boundaries are checked by `make check-architecture`.

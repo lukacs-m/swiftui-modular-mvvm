@@ -54,7 +54,7 @@ jobs:
       - name: Check fresh-project workflow
         run: make test-scaffold
 
-      - name: Test packages
+      - name: Test modules
         run: make test
 
       - name: Build app

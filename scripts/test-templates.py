@@ -16,6 +16,6 @@ with copy_scaffold() as root:
                 text = text.replace(key, value)
             assert "___" not in text, f"Unexpanded placeholder in {source}"
             filename = source.name.replace("___FILEBASENAME___", name)
-            (root / "Packages" / layer / "Sources" / layer / filename).write_text(text)
+            (root / "Packages" / "AppModules" / "Sources" / layer / filename).write_text(text)
     run(root, "make", "test")
 print("All three Xcode templates compile with the scaffold settings.")

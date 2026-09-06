@@ -6,20 +6,9 @@ options:
     iOS: "26.0"
   createIntermediateGroups: true
 
-# Each architectural layer is its own local package.
 packages:
-  Common:
-    path: Packages/Common
-  Model:
-    path: Packages/Model
-  Domain:
-    path: Packages/Domain
-  Data:
-    path: Packages/Data
-  DI:
-    path: Packages/DI
-  Presentation:
-    path: Packages/Presentation
+  AppModules:
+    path: Packages/AppModules
 
 targets:
   MyApp:
@@ -30,11 +19,11 @@ targets:
       - path: App/MyApp
     dependencies:
       # Presentation provides the root views (and pulls in Domain/Model/Common/DI).
-      - package: Presentation
+      - package: AppModules
         product: Presentation
       # DI is linked explicitly so its Factory Container registrations are
       # compiled into the app and available at resolution time.
-      - package: DI
+      - package: AppModules
         product: DI
     info:
       path: App/MyApp/Info.plist
@@ -75,6 +64,6 @@ schemes:
     test:
       gatherCoverageData: true
       targets:
-        - package: Domain/DomainTests
-        - package: Data/DataTests
-        - package: Presentation/PresentationTests
+        - package: AppModules/DomainTests
+        - package: AppModules/DataTests
+        - package: AppModules/PresentationTests

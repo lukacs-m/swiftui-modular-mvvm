@@ -1,47 +1,38 @@
 #!/usr/bin/env bash
-#
-# Strip the example "Article" feature slice from the scaffold, leaving a clean
-# but still-compiling skeleton: six packages with their structural files intact
-# (ViewState, DomainError, Log, the DI FactoryKit re-export) and a minimal app entry point.
-#
-# Empty targets receive placeholders; reusable state and error types survive.
-#
-# Usage:  ./scaffold-clean.sh [--force]
-#         --force   skip the confirmation prompt
-#
+# Empty targets need placeholders after the example is removed.
 set -euo pipefail
 
 FORCE="${1:-}"
 
 # The example slice — every file that exists only to demonstrate the pattern.
 EXAMPLE_FILES=(
-  "Packages/Model/Sources/Model/Article.swift"
-  "Packages/Domain/Sources/Domain/ArticleRepository.swift"
-  "Packages/Domain/Sources/Domain/FetchArticlesUseCase.swift"
-  "Packages/Domain/Tests/DomainTests/FetchArticlesTests.swift"
-  "Packages/Data/Sources/Data/ArticleDTO.swift"
-  "Packages/Data/Sources/Data/SampleArticleRepository.swift"
-  "Packages/Data/Tests/DataTests/ArticleRepositoryTests.swift"
-  "Packages/DI/Sources/DI/Registrations/ArticleRegistrations.swift"
-  "Packages/Presentation/Sources/Presentation/ArticleListView.swift"
-  "Packages/Presentation/Sources/Presentation/ArticleListViewModel.swift"
-  "Packages/Presentation/Tests/PresentationTests/ArticleListViewModelTests.swift"
-  "Packages/Presentation/Tests/PresentationTests/ArticleLifecycleTests.swift"
+  "Packages/AppModules/Sources/Model/Article.swift"
+  "Packages/AppModules/Sources/Domain/ArticleRepository.swift"
+  "Packages/AppModules/Sources/Domain/FetchArticlesUseCase.swift"
+  "Packages/AppModules/Tests/DomainTests/FetchArticlesTests.swift"
+  "Packages/AppModules/Sources/Data/ArticleDTO.swift"
+  "Packages/AppModules/Sources/Data/SampleArticleRepository.swift"
+  "Packages/AppModules/Tests/DataTests/ArticleRepositoryTests.swift"
+  "Packages/AppModules/Sources/DI/Registrations/ArticleRegistrations.swift"
+  "Packages/AppModules/Sources/Presentation/ArticleListView.swift"
+  "Packages/AppModules/Sources/Presentation/ArticleListViewModel.swift"
+  "Packages/AppModules/Tests/PresentationTests/ArticleListViewModelTests.swift"
+  "Packages/AppModules/Tests/PresentationTests/ArticleLifecycleTests.swift"
 )
 
-if [[ ! -d Packages ]]; then
-  echo "error: run this from the repo root (no Packages/ directory found)." >&2
+if [[ ! -f Packages/AppModules/Package.swift ]]; then
+  echo "error: run this from the repo root (Packages/AppModules/Package.swift not found)." >&2
   exit 1
 fi
 
 # Detect whether the slice is even present (idempotency).
-if [[ ! -f "Packages/Model/Sources/Model/Article.swift" ]]; then
+if [[ ! -f "Packages/AppModules/Sources/Model/Article.swift" ]]; then
   echo "Example slice already removed — nothing to do."
   exit 0
 fi
 
 if [[ "$FORCE" != "--force" ]]; then
-  echo "This removes the example 'Article' feature from all six packages and"
+  echo "This removes the example 'Article' feature from all six modules and"
   echo "replaces the app entry point with an empty scene. Structural files"
   echo "(ViewState, DomainError, Log, DI re-export) are kept."
   printf "Proceed? [y/N] "
@@ -82,16 +73,16 @@ placeholder() {
 EOF
 }
 
-placeholder "Packages/Model/Sources/Model/Placeholder.swift"             "Model"
-placeholder "Packages/Data/Sources/Data/Placeholder.swift"               "Data"
+placeholder "Packages/AppModules/Sources/Model/Placeholder.swift"             "Model"
+placeholder "Packages/AppModules/Sources/Data/Placeholder.swift"               "Data"
 
 # Keep the DI Registrations folder discoverable, but empty of features.
-placeholder "Packages/DI/Sources/DI/Registrations/Placeholder.swift"     "DI registrations"
+placeholder "Packages/AppModules/Sources/DI/Registrations/Placeholder.swift"     "DI registrations"
 
 # Keep test discovery working after removing the example suites.
-mkdir -p "Packages/Domain/Tests/DomainTests"
-if [[ ! -f "Packages/Domain/Tests/DomainTests/PlaceholderTests.swift" ]]; then
-cat > "Packages/Domain/Tests/DomainTests/PlaceholderTests.swift" <<'EOF'
+mkdir -p "Packages/AppModules/Tests/DomainTests"
+if [[ ! -f "Packages/AppModules/Tests/DomainTests/PlaceholderTests.swift" ]]; then
+cat > "Packages/AppModules/Tests/DomainTests/PlaceholderTests.swift" <<'EOF'
 import Testing
 
 @Test func domainPlaceholder() {
@@ -101,9 +92,9 @@ import Testing
 EOF
 fi
 
-mkdir -p "Packages/Presentation/Tests/PresentationTests"
-if [[ ! -f "Packages/Presentation/Tests/PresentationTests/PlaceholderTests.swift" ]]; then
-cat > "Packages/Presentation/Tests/PresentationTests/PlaceholderTests.swift" <<'EOF'
+mkdir -p "Packages/AppModules/Tests/PresentationTests"
+if [[ ! -f "Packages/AppModules/Tests/PresentationTests/PlaceholderTests.swift" ]]; then
+cat > "Packages/AppModules/Tests/PresentationTests/PlaceholderTests.swift" <<'EOF'
 import Testing
 
 @Test func presentationPlaceholder() {
@@ -113,9 +104,9 @@ import Testing
 EOF
 fi
 
-mkdir -p "Packages/Data/Tests/DataTests"
-if [[ ! -f "Packages/Data/Tests/DataTests/PlaceholderTests.swift" ]]; then
-cat > "Packages/Data/Tests/DataTests/PlaceholderTests.swift" <<'EOF'
+mkdir -p "Packages/AppModules/Tests/DataTests"
+if [[ ! -f "Packages/AppModules/Tests/DataTests/PlaceholderTests.swift" ]]; then
+cat > "Packages/AppModules/Tests/DataTests/PlaceholderTests.swift" <<'EOF'
 import Testing
 
 @Test func dataPlaceholder() {
@@ -129,14 +120,11 @@ if [[ -f "$APP_FILE" ]]; then
   cat > "$APP_FILE" <<EOF
 import SwiftUI
 
-/// The entire app target. All logic and UI live in the layer packages
-/// (Common / Model / Domain / Data / DI / Presentation). Wire your root view
-/// from Presentation here once you build it.
 @main
 struct $APP_NAME: App {
     var body: some Scene {
         WindowGroup {
-            // Replace with your root view from the Presentation package.
+            // Replace with your root view from the Presentation module.
             EmptyView()
         }
     }
@@ -144,5 +132,5 @@ struct $APP_NAME: App {
 EOF
 fi
 
-echo "✅ Stripped the example slice. Six clean packages remain."
+echo "✅ Stripped the example slice. One package with six clean modules remains."
 echo "   Next: add your first feature (Model → Domain → Data → DI → Presentation)."
