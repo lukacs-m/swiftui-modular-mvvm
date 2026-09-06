@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Exercise the public bootstrap commands without touching the user's project."""
+import json
 import os
 from pathlib import Path
+import xml.etree.ElementTree as ET
 from scaffold_test_support import copy_scaffold, run
 
 with copy_scaffold() as root:
     # Xcode 26.4 generates actor-unsafe accessors for MainActor package catalogs.
     symbols = root.parent / "string-symbols"
     symbols.mkdir()
-    catalog = root / "Packages/Presentation/Sources/Presentation/Resources/Localizable.xcstrings"
+    catalog = root / "Packages/AppModules/Sources/Presentation/Resources/Localizable.xcstrings"
     run(root, "xcrun", "xcstringstool", "generate-symbols", str(catalog),
         "--output-directory", str(symbols), "--language", "swift")
     generated = list(symbols.glob("*.swift"))
@@ -16,7 +18,7 @@ with copy_scaffold() as root:
         "Keep unused string-symbol generation disabled for Xcode 26.4 compatibility."
     original = (root / "project.yml").read_bytes()
     app_name = original.decode().splitlines()[0].split(":", 1)[1].strip()
-    for name in ["class", "App", "Data", "Bad_Name", "9App", "Bad-Name"]:
+    for name in ["class", "App", "Data", "AppModules", "Bad_Name", "9App", "Bad-Name"]:
         run(root, "make", "rename", f"NAME={name}", expected_success=False)
         assert (root / "project.yml").read_bytes() == original
         assert (root / f"App/{app_name}/{app_name}.swift").exists()
@@ -31,16 +33,32 @@ with copy_scaffold() as root:
     assert "Setup complete" not in result.stdout
 
     pins = (root / "Package.resolved").read_bytes()
+    package = root / "Packages/AppModules"
+    package_pins = (package / "Package.resolved").read_bytes()
+    manifest = (package / "Package.swift").read_bytes()
     run(root, "make", "new-project", "NAME=AuditApp")
     entry = (root / "App/AuditApp/AuditApp.swift").read_bytes()
     run(root, "make", "new-project")
     assert (root / "App/AuditApp/AuditApp.swift").read_bytes() == entry
-    assert (root / "Packages/Domain/Sources/Domain/DomainError.swift").exists()
-    assert (root / "Packages/Presentation/Sources/Presentation/ViewState.swift").exists()
+    assert (root / "Packages/AppModules/Sources/Domain/DomainError.swift").exists()
+    assert (root / "Packages/AppModules/Sources/Presentation/ViewState.swift").exists()
     run(root, "make", "rename", "NAME=RenamedApp")
     run(root, "make", "clean")
     assert (root / "Package.resolved").read_bytes() == pins
+    assert (package / "Package.resolved").read_bytes() == package_pins
+    assert (package / "Package.swift").read_bytes() == manifest
+    assert list((root / "Packages").glob("*/Package.swift")) == [package / "Package.swift"]
+    assert {path.name for path in (package / "Sources").iterdir()} == {
+        "Common", "Model", "Domain", "Data", "DI", "Presentation"
+    }
+    assert "com.example.RenamedApp" in (package / "Sources/Common/Log.swift").read_text()
     run(root, "make", "generate")
+    scheme = ET.parse(root / "RenamedApp.xcodeproj/xcshareddata/xcschemes/RenamedApp.xcscheme")
+    tests = scheme.findall(".//TestableReference/BuildableReference")
+    assert {test.attrib["BlueprintIdentifier"] for test in tests} == {
+        "DomainTests", "DataTests", "PresentationTests"
+    }
+    assert all(test.attrib["ReferencedContainer"] == "container:Packages/AppModules" for test in tests)
     app_pins = root / "RenamedApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
     assert app_pins.read_bytes() == pins
     run(root, "make", "check-locks", "check-architecture", "test", "build")
@@ -50,13 +68,67 @@ with copy_scaffold() as root:
     run(root, "git", "add", ".")
     run(root, "git", "-c", "user.name=Scaffold Test", "-c", "user.email=scaffold@example.invalid",
         "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Smoke test baseline")
-    article = root / "Packages/Model/Sources/Model/Article.swift"
+    article = root / "Packages/AppModules/Sources/Model/Article.swift"
     if article.exists():
         article.write_text(article.read_text() + "\n// Uncommitted customization.\n")
         before = article.read_bytes()
         run(root, "make", "new-project", expected_success=False)
         assert article.read_bytes() == before
-    forbidden = root / "Packages/Domain/Sources/Domain/Forbidden.swift"
-    forbidden.write_text("import SwiftUI\n")
-    run(root, "make", "check-architecture", expected_success=False)
+
+with copy_scaffold() as root:
+    manifest = root / "Packages/AppModules/Package.swift"
+    original = manifest.read_text()
+    with_sqlite = original.replace(
+        '.package(url: "https://github.com/hmlongco/Factory.git", from: "3.0.0"),',
+        '.package(url: "https://github.com/hmlongco/Factory.git", from: "3.0.0"),\n'
+        '        .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.0.0"),')
+    manifest.write_text(with_sqlite.replace(
+        'dependencies: ["Common", "Model", "Domain"],',
+        'dependencies: ["Common", "Model", "Domain", .product(name: "SQLiteData", package: "sqlite-data")],'))
+    run(root, "make", "check-architecture")
+    mutations = [
+        ('dependencies: ["Common", "Model"],',
+         'dependencies: ["Common", "Model", "Data"],', "Domain: forbidden dependency Data"),
+        ('dependencies: ["Common", "Model"],',
+         'dependencies: ["Common", "Model", .target(name: "DI")],', "Domain: forbidden dependency DI"),
+        ('dependencies: ["Common", "Model", "Domain", "DI"],',
+         'dependencies: ["Common", "Model", "Domain", "DI", .product(name: "FactoryKit", package: "Factory")],',
+         "Presentation: FactoryKit belongs in DI"),
+        ('dependencies: ["Common", "Model"],',
+         'dependencies: ["Common", "Model", .product(name: "SQLiteData", package: "sqlite-data")],',
+         "Domain: SQLiteData belongs in Data"),
+        ('swiftSettings: sharedSwiftSettings', 'swiftSettings: presentationSwiftSettings',
+         "Common: only Presentation and PresentationTests may set default isolation"),
+        ('swiftSettings: presentationSwiftSettings', 'swiftSettings: sharedSwiftSettings',
+         "Presentation: must default to MainActor"),
+        ('.enableUpcomingFeature("ExistentialAny"),', '', "Common: missing Swift features ExistentialAny"),
+        ('name: "Common",', 'name: "Utilities",', "Missing target Common"),
+        ('dependencies: ["Common", "Model"],',
+         'dependencies: ["Common", "Model"], path: "Sources/Data",', "Domain: sources must live in Sources/Domain"),
+    ]
+    for before, after, diagnostic in mutations:
+        assert before in original
+        source = with_sqlite if 'package: "sqlite-data"' in after else original
+        manifest.write_text(source.replace(before, after, 1))
+        result = run(root, "make", "check-architecture", expected_success=False)
+        assert diagnostic in result.stdout + result.stderr, result.stdout + result.stderr
+    manifest.write_text(original)
+    for layer, module, diagnostic in [
+        ("Presentation", "Data", "forbidden import Data"),
+        ("Domain", "FactoryKit", "import DI for registration APIs"),
+        ("Data", "SwiftData", "persistence must use SQLiteData in Data"),
+        ("Domain", "SwiftUI", "UI belongs in Presentation"),
+    ]:
+        forbidden = root / "Packages/AppModules/Sources" / layer / "Forbidden.swift"
+        forbidden.write_text(f"import {module}\n")
+        result = run(root, "make", "check-architecture", expected_success=False)
+        assert diagnostic in result.stdout + result.stderr, result.stdout + result.stderr
+        forbidden.unlink()
+    run(root, "make", "check-architecture", "check-locks")
+    lock = root / "Packages/AppModules/Package.resolved"
+    pins = json.loads(lock.read_text())
+    pins["pins"][0]["state"]["revision"] = "0" * 40
+    lock.write_text(json.dumps(pins))
+    result = run(root, "make", "check-locks", expected_success=False)
+    assert "Dependency pins differ" in result.stdout + result.stderr
 print("Bootstrap, pin preservation, and architecture smoke checks passed.")

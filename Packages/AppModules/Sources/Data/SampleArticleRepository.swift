@@ -44,7 +44,7 @@ public struct SampleArticleRepository: ArticleRepository {
             ArticleDTO(
                 id: "00000000-0000-0000-0000-000000000001",
                 title: "Modular SwiftUI Architecture",
-                summary: "Why a layered set of packages keeps an app honest.",
+                summary: "Why a layered set of modules keeps an app honest.",
                 publishedAt: "2026-01-02T12:00:00Z",
             ),
             ArticleDTO(

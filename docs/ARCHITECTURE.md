@@ -7,9 +7,10 @@ start, see `README.md`. For agent-oriented rules, see `AGENTS.md`.
 
 This is a modular MVVM iOS app. The defining characteristic: the app target holds
 nothing but `@main`, and every piece of logic and UI lives in one of six
-independent Swift packages, each representing a single architectural layer. The
-packages depend on each other in one direction only, which makes the boundaries
-real (enforced by the compiler) rather than conventional.
+modules within the local AppModules package. Each layer has its own target in
+`Packages/AppModules/Package.swift`, with explicit downward dependencies and its
+own compiler settings. Module boundaries and source-import checks preserve the
+layering while the package shares dependency resolution and build configuration.
 
 ```
 App (@main only)
@@ -59,7 +60,7 @@ The single place where abstractions are bound to implementations. DI imports the
 that connect, say, `any ArticleRepository` to `SampleArticleRepository`. It exposes
 those bindings as `Container` keyPaths that the Presentation layer injects against.
 
-Registrations live in `Sources/DI/Registrations/`, **one file per feature**, so the
+Registrations live in `Packages/AppModules/Sources/DI/Registrations/`, **one file per feature**, so the
 wiring stays navigable as the app grows. DI re-exports FactoryKit
 (`@_exported import FactoryKit`), so any module that imports DI also gets
 `Container` and `@Injected` without importing Factory directly.
@@ -68,19 +69,19 @@ wiring stays navigable as the app grows. DI re-exports FactoryKit
 SwiftUI Views and their `@Observable` ViewModels. ViewModels inject Domain use
 cases (via the DI keyPaths) and expose screen state as a `ViewState`. Views are
 "dumb": they render state and forward user intent, with no business logic in
-`body`. This package is **MainActor-isolated by default**, which fits a UI layer —
+`body`. This target is **MainActor-isolated by default**, which fits a UI layer —
 you write straightforward main-thread code and only step off it deliberately.
 
 Presentation imports Domain and DI, but must not import Data. It still builds
 Data transitively through DI and uses Factory APIs through the DI re-export.
-`make check-architecture` enforces forbidden imports and package dependency direction
+`make check-architecture` enforces forbidden imports and target dependency direction
 in CI; the composition pattern does not make Presentation independent of Factory.
 
-## Why a separate DI package?
+## Why a separate DI module?
 
 An earlier design kept registrations inside Data. That forced Presentation to link
 Data (a boundary leak) and made the `Container` keyPaths invisible where they were
-used. Pulling composition into its own package fixes both problems:
+used. Pulling composition into its own module fixes both problems:
 
 - Domain and Data stay completely free of any DI framework.
 - Presentation depends only on DI for keyPaths — never on concrete implementations.
@@ -102,7 +103,8 @@ hard to test without standing up a container. SQLiteData also gives explicit
 migrations and optional CloudKit sync (`SyncEngine`) without changing the storage
 model.
 
-Where it lives: the dependency belongs to **Data only**. Domain keeps declaring
+Declare SQLiteData once in `Packages/AppModules/Package.swift` and assign its
+product to the **Data target only**. Domain keeps declaring
 repository protocols in terms of `Model` entities and never learns that SQLite
 exists. `@Table` types are persistence records — the storage-side twin of a DTO —
 and are mapped to `Model` entities at the Data boundary, exactly as `ArticleDTO` is
@@ -129,12 +131,12 @@ isolation:
 - **App target** mirrors a fresh Xcode 26 project: MainActor default isolation +
   approachable concurrency, set in `project.yml`.
 
-All packages compile in Swift 6 language mode with strict concurrency. Entities are
+All targets compile in Swift 6 language mode with strict concurrency. Entities are
 `Sendable`; repository protocols are `Sendable`.
 
 ## The `public import` model
 
-Every package enables the `InternalImportsByDefault` upcoming feature: a plain
+Every target enables the `InternalImportsByDefault` upcoming feature: a plain
 `import Foo` is `internal`, and a module must be imported with `public import Foo`
 if any of its types appear in the importing file's *public* API. This keeps each
 module's public surface honest about its true dependencies.
@@ -188,11 +190,11 @@ error so loaded content remains accessible. Interface strings resolve from the
 Presentation resource bundle. Previews render state directly without shared DI overrides.
 
 Keep `generatesSymbol: false` on the catalog's manual entries while supporting
-Xcode 26.4: its generated string accessors conflict with the package's default
+Xcode 26.4: its generated string accessors conflict with the Presentation target's default
 MainActor isolation. The sample uses string keys directly, so those accessors are
 unused; catalog compilation and translations remain enabled. `make test-scaffold`
 checks the generator output to prevent this regression.
 
-The root app lockfile and DI/Presentation package lockfiles are retained outside
+The root app lockfile and AppModules package lockfile are retained outside
 build artifacts. Generation restores the app lockfile; normal build/test commands
 require the pins. See README for dependency updates and bootstrap regression checks.

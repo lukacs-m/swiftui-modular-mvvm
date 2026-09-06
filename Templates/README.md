@@ -35,7 +35,7 @@ These templates produce a single layer's files. A full feature still spans the
 stack, so after generating:
 
 - **UseCase** (Domain) → add the concrete repository in **Data**, then register
-  both in **DI** (`Packages/DI/Sources/DI/Registrations/`).
+  both in **DI** (`Packages/AppModules/Sources/DI/Registrations/`).
 - **MVVM** (Presentation) → inject the use case into the view model via
   `@ObservationIgnored @Injected(\.someUseCase)` and render the `ViewState`.
 

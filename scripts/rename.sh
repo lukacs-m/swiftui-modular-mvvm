@@ -1,15 +1,5 @@
 #!/usr/bin/env bash
-#
-# Rename the app/project from its current name to a new one.
-#
-# Updates: project.yml (name, target, source path, Info.plist path, bundle id),
-# the @main App struct + its file/folder, the logger subsystem, the Makefile
-# PROJECT/SCHEME vars, and README references. Does NOT touch the layer package
-# names (Common, Model, Domain, Data, DI, Presentation) — only the app shell.
-#
-# Usage:  ./rename.sh <NewName>
-# Example: ./rename.sh AcmeReader
-#
+# AppModules and its module names stay stable when the app shell is renamed.
 set -euo pipefail
 
 if [[ ! -f project.yml ]]; then
@@ -35,9 +25,8 @@ if ! printf 'struct %s {}\n' "$NEW_NAME" | swiftc -frontend -parse - >/dev/null 
   exit 1
 fi
 
-# Guard against collisions with the layer package names.
 case "$NEW_NAME" in
-  Common|Model|Domain|Data|DI|Presentation|App)
+  Common|Model|Domain|Data|DI|Presentation|App|AppModules)
     echo "error: '$NEW_NAME' is reserved by the scaffold." >&2
     exit 1 ;;
 esac
@@ -84,8 +73,8 @@ fi
 sed_i "s/${OLD_NAME}/${NEW_NAME}/g" project.yml
 
 # Logger subsystem string in Common (com.example.<name>).
-if [[ -f "Packages/Common/Sources/Common/Log.swift" ]]; then
-  sed_i "s/com\.example\.${OLD_NAME}/com.example.${NEW_NAME}/" "Packages/Common/Sources/Common/Log.swift"
+if [[ -f "Packages/AppModules/Sources/Common/Log.swift" ]]; then
+  sed_i "s/com\.example\.${OLD_NAME}/com.example.${NEW_NAME}/" "Packages/AppModules/Sources/Common/Log.swift"
 fi
 
 # Makefile: PROJECT and SCHEME variables, plus comments.
